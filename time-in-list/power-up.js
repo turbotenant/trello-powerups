@@ -1,7 +1,7 @@
 /* global TrelloPowerUp, dateFns */
 
 // --- Holiday Configuration ---
-// dummy
+
 // Rules for calculating US federal holidays.
 // This approach ensures holidays are correctly calculated for any year.
 const HOLIDAY_RULES = {
@@ -158,7 +158,7 @@ const renderTimeInList = (history) => {
 TrelloPowerUp.initialize({
   "card-back-section": function (t, options) {
     return {
-      title: "Time in List",
+      title: "Time in List Facu",
       icon: "https://cdn.glitch.com/2442c68d-7b6d-4b69-9d13-fe175de664c4%2Ficon.svg", // A placeholder icon
       content: {
         type: "iframe",
