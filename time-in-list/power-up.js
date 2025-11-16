@@ -124,89 +124,110 @@ const calculateBusinessTime = (startDate, endDate) => {
   return result.trim();
 };
 
-const t = TrelloPowerUp.iframe();
+// ===== DETECT CONTEXT =====
+// Check if we're in an iframe context or main Power-Up context
+if (window.location.href.includes("index.html")) {
+  // IFRAME CODE - runs when index.html is loaded
+  const t = TrelloPowerUp.iframe();
 
-// Function to calculate time (will be implemented later)
-const renderTimeInList = (history) => {
-  const timeListElement = document.getElementById("time-list");
-  if (!history || history.length === 0) {
-    timeListElement.innerHTML = "<p>No movement history yet.</p>";
-    return;
-  }
+  const renderTimeInList = (history) => {
+    const timeListElement = document.getElementById("time-list");
 
-  const now = new Date();
-  let html = "";
+    // Clear previous content
+    timeListElement.innerHTML = "";
 
-  history.forEach((entry, index) => {
-    const startDate = dateFns.parseISO(entry.enteredAt);
-    const endDate =
-      index < history.length - 1
-        ? dateFns.parseISO(history[index + 1].enteredAt)
-        : now;
+    // --- DEBUGGING LINE ---
+    // Let's display the number of entries in our history array.
+    const debugInfo = document.createElement("p");
+    debugInfo.style.color = "#888";
+    debugInfo.textContent = `(Debug: ${
+      history ? history.length : 0
+    } history entries found)`;
+    timeListElement.appendChild(debugInfo);
+    // --- END DEBUGGING ---
 
-    const duration = calculateBusinessTime(startDate, endDate);
+    if (!history || history.length === 0) {
+      timeListElement.innerHTML = "<p>No movement history yet.</p>";
+      return;
+    }
 
-    html += `<div class="list-item">
-               <span class="list-name">${entry.listName}</span>
-               <span class="list-time">${duration}</span>
-             </div>`;
-  });
+    const now = new Date();
+    let html = "";
 
-  timeListElement.innerHTML = html;
-};
+    history.forEach((entry, index) => {
+      const startDate = dateFns.parseISO(entry.enteredAt);
+      const endDate =
+        index < history.length - 1
+          ? dateFns.parseISO(history[index + 1].enteredAt)
+          : now;
 
-TrelloPowerUp.initialize({
-  "card-back-section": function (t, options) {
-    return {
-      title: "Time in List Facu",
-      icon: "https://cdn.glitch.com/2442c68d-7b6d-4b69-9d13-fe175de664c4%2Ficon.svg", // A placeholder icon
-      content: {
-        type: "iframe",
-        url: t.signUrl("./index.html"),
-        height: 200, // initial height
-      },
-    };
-  },
-});
+      const duration = calculateBusinessTime(startDate, endDate);
 
-// We need to handle the rendering when the iframe (index.html) loads
-window.addEventListener("load", () => {
-  t.card("id", "idList")
-    .then((card) => {
-      return t.list("name").then((list) => {
-        return { card, list };
-      });
-    })
-    .then(({ card, list }) => {
-      return t
-        .get(card.id, "private", "timeInListHistory", [])
-        .then((history) => {
-          const lastEntry =
-            history.length > 0 ? history[history.length - 1] : null;
-
-          if (!lastEntry || lastEntry.listId !== card.idList) {
-            // Card is in a new list, or this is the first time we're seeing it.
-            const newHistory = [
-              ...history,
-              {
-                listId: card.idList,
-                listName: list.name,
-                enteredAt: new Date().toISOString(),
-              },
-            ];
-            // Save the updated history and then render it.
-            return t
-              .set(card.id, "private", "timeInListHistory", newHistory)
-              .then(() => newHistory);
-          } else {
-            // Card has not moved since last view.
-            return history;
-          }
-        });
-    })
-    .then((history) => {
-      renderTimeInList(history);
-      // We also need to resize the iframe to fit the content
-      t.sizeTo("#content");
+      html += `<div class="list-item">
+                 <span class="list-name">${entry.listName}</span>
+                 <span class="list-time">${duration}</span>
+               </div>`;
     });
-});
+
+    timeListElement.innerHTML = html;
+  };
+
+  // We need to handle the rendering when the iframe (index.html) loads
+  window.addEventListener("load", () => {
+    console.log("iframe loaded");
+    t.card("id", "idList")
+      .then((card) => {
+        return t.list("name").then((list) => {
+          return { card, list };
+        });
+      })
+      .then(({ card, list }) => {
+        return t
+          .get(card.id, "private", "timeInListHistory", [])
+          .then((history) => {
+            const lastEntry =
+              history.length > 0 ? history[history.length - 1] : null;
+
+            if (!lastEntry || lastEntry.listId !== card.idList) {
+              // Card is in a new list, or this is the first time we're seeing it.
+              const newHistory = [
+                ...history,
+                {
+                  listId: card.idList,
+                  listName: list.name,
+                  enteredAt: new Date().toISOString(),
+                },
+              ];
+              // Save the updated history and then render it.
+              return t
+                .set(card.id, "private", "timeInListHistory", newHistory)
+                .then(() => newHistory);
+            } else {
+              // Card has not moved since last view.
+              return history;
+            }
+          });
+      })
+      .then((history) => {
+        renderTimeInList(history);
+        // We also need to resize the iframe to fit the content
+        t.sizeTo("#content");
+      });
+  });
+} else {
+  // MAIN POWER-UP CODE - runs when Trello loads the Power-Up
+  TrelloPowerUp.initialize({
+    "card-back-section": function (t, options) {
+      console.log("card-back-section initialized");
+      return {
+        title: "Time in List Facu",
+        icon: "https://cdn-icons-png.flaticon.com/512/2088/2088617.png", // A placeholder icon
+        content: {
+          type: "iframe",
+          url: t.signUrl("./index.html"),
+          height: 200, // initial height
+        },
+      };
+    },
+  });
+}
