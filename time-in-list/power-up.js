@@ -1,5 +1,12 @@
 /* global TrelloPowerUp, dateFns */
 
+// === DEBUG LOGGING ===
+console.log("🚀 Power-Up script loaded!");
+console.log("📍 Current URL:", window.location.href);
+console.log("🔍 TrelloPowerUp available:", typeof TrelloPowerUp);
+console.log("📅 dateFns available:", typeof dateFns);
+// === END DEBUG ===
+
 // --- Holiday Configuration ---
 
 // Rules for calculating US federal holidays.
@@ -216,18 +223,31 @@ if (window.location.href.includes("index.html")) {
   });
 } else {
   // MAIN POWER-UP CODE - runs when Trello loads the Power-Up
+  console.log("🎯 Initializing Power-Up in main context");
+
   TrelloPowerUp.initialize({
     "card-back-section": function (t, options) {
-      console.log("card-back-section initialized");
+      console.log("✅ card-back-section callback triggered");
       return {
         title: "Time in List Facu",
-        icon: "https://cdn-icons-png.flaticon.com/512/2088/2088617.png", // A placeholder icon
+        icon: "https://cdn-icons-png.flaticon.com/512/2088/2088617.png",
         content: {
           type: "iframe",
           url: t.signUrl("./index.html"),
-          height: 200, // initial height
+          height: 200,
         },
       };
     },
+    "card-badges": function (t, options) {
+      console.log("🏷️ card-badges callback triggered");
+      return [
+        {
+          text: "⏱️ Test",
+          color: "blue",
+        },
+      ];
+    },
   });
+
+  console.log("✨ Power-Up initialization complete");
 }
