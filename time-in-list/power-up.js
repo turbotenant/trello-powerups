@@ -83,6 +83,8 @@ const getHolidaysForYear = (year) => {
   return holidays;
 };
 
+// ===== SHARED HELPER FUNCTIONS =====
+
 function showAuthorizePopup(t) {
   return t.popup({
     title: "Authorize to continue",
@@ -91,12 +93,33 @@ function showAuthorizePopup(t) {
 }
 
 /**
- * Calculates the working time between two dates, excluding weekends and holidays.
- * @param {Date} startDate The start of the period.
- * @param {Date} endDate The end of the period.
- * @returns {string} A formatted string representing the duration (e.g., "2d 5h 30m").
+ * Gets the authorization token from the Trello API.
+ * @param {Object} t - The Trello Power-Up interface.
+ * @returns {Promise<string|null>} The token or null if not authorized.
  */
-const calculateBusinessTime = (startDate, endDate) => {
+const getAuthToken = async (t) => {
+  const api = await t.getRestApi();
+  return await api.getToken();
+};
+
+/**
+ * Extracts the creation timestamp from a Trello card ID.
+ * Trello IDs are MongoDB ObjectIDs where the first 8 hex characters encode the Unix timestamp.
+ * @param {string} cardId - The Trello card ID.
+ * @returns {Date} The creation date of the card.
+ */
+const getCardCreationDate = (cardId) => {
+  const timestamp = parseInt(cardId.substring(0, 8), 16);
+  return new Date(timestamp * 1000);
+};
+
+/**
+ * Calculates business minutes between two dates, excluding weekends and holidays.
+ * @param {Date} startDate - The start of the period.
+ * @param {Date} endDate - The end of the period.
+ * @returns {number} Total business minutes.
+ */
+const calculateBusinessMinutes = (startDate, endDate) => {
   let totalMinutes = 0;
   const holidaysByYear = {};
 
@@ -130,6 +153,15 @@ const calculateBusinessTime = (startDate, endDate) => {
     currentDate = currentDate.add(1, "day");
   }
 
+  return totalMinutes;
+};
+
+/**
+ * Formats business minutes into a human-readable duration string.
+ * @param {number} totalMinutes - Total minutes to format.
+ * @returns {string} Formatted duration (e.g., "2d 5h 30m").
+ */
+const formatBusinessTime = (totalMinutes) => {
   if (totalMinutes < 1) {
     return "Less than a minute";
   }
@@ -174,6 +206,60 @@ const calculateBusinessTime = (startDate, endDate) => {
   return minutes === 1 ? "1 minute" : `${minutes} minutes`;
 };
 
+/**
+ * Calculates the working time between two dates, excluding weekends and holidays.
+ * @param {Date} startDate - The start of the period.
+ * @param {Date} endDate - The end of the period.
+ * @returns {string} A formatted string representing the duration (e.g., "2d 5h 30m").
+ */
+const calculateBusinessTime = (startDate, endDate) => {
+  const totalMinutes = calculateBusinessMinutes(startDate, endDate);
+  return formatBusinessTime(totalMinutes);
+};
+
+/**
+ * Builds card movement history from Trello actions.
+ * Handles both regular cards and copied cards (which lack createCard actions).
+ * @param {Array} actions - Array of Trello actions.
+ * @param {string} cardId - The card ID.
+ * @returns {Array} History array with listName and enteredAt properties.
+ */
+const buildCardHistory = (actions, cardId) => {
+  const history = actions
+    .filter(
+      (action) =>
+        action.type === "createCard" ||
+        (action.type === "updateCard" && action.data.listAfter)
+    )
+    .map((action) => ({
+      listName:
+        action.type === "createCard"
+          ? action.data.list.name
+          : action.data.listAfter.name,
+      enteredAt: action.date,
+    }))
+    .reverse(); // Trello returns actions newest-first
+
+  // If no createCard action exists (copied cards), add initial entry using card ID timestamp
+  if (history.length > 0 && actions.length > 0) {
+    const firstAction = actions[actions.length - 1]; // Oldest action
+
+    // Check if the first action is NOT a createCard
+    if (firstAction.type === "updateCard" && firstAction.data.listBefore) {
+      // Card was moved, so it existed before - extract creation time from card ID
+      const creationDate = getCardCreationDate(cardId);
+
+      // Add the initial list entry at the beginning
+      history.unshift({
+        listName: firstAction.data.listBefore.name,
+        enteredAt: creationDate.toISOString(),
+      });
+    }
+  }
+
+  return history;
+};
+
 // ===== DETECT CONTEXT =====
 // Check if we're in an iframe context or main Power-Up context
 if (window.location.href.includes("index.html")) {
@@ -215,43 +301,12 @@ if (window.location.href.includes("index.html")) {
               ? dayjs(history[index + 1].enteredAt).toDate()
               : now;
 
-          // Calculate duration in minutes for percentage
-          let totalMinutes = 0;
-          let currentDate = dayjs(startDate);
-          const end = dayjs(endDate);
-          const holidaysByYear = {};
-
-          while (currentDate.isBefore(end)) {
-            const year = currentDate.year();
-            if (!holidaysByYear[year]) {
-              holidaysByYear[year] = getHolidaysForYear(year);
-            }
-            const holidays = holidaysByYear[year];
-            const formattedDate = currentDate.format("YYYY-MM-DD");
-            const dayOfWeek = currentDate.day();
-
-            if (
-              dayOfWeek > 0 &&
-              dayOfWeek < 6 &&
-              !holidays.includes(formattedDate)
-            ) {
-              const startOfDay = currentDate.startOf("day");
-              const endOfDay = currentDate.endOf("day");
-              const effectiveStart = currentDate.isSame(startDate, "day")
-                ? dayjs(startDate)
-                : startOfDay;
-              const effectiveEnd = currentDate.isSame(endDate, "day")
-                ? dayjs(endDate)
-                : endOfDay;
-              totalMinutes += effectiveEnd.diff(effectiveStart, "minute");
-            }
-            currentDate = currentDate.add(1, "day");
-          }
+          const minutes = calculateBusinessMinutes(startDate, endDate);
 
           return {
             listName: entry.listName,
-            minutes: totalMinutes,
-            formatted: calculateBusinessTime(startDate, endDate),
+            minutes: minutes,
+            formatted: formatBusinessTime(minutes),
           };
         });
 
@@ -281,9 +336,7 @@ if (window.location.href.includes("index.html")) {
         timeListElement.innerHTML = html;
       };
 
-      const api = await t.getRestApi();
-      const token = await api.getToken();
-      // We now have an instance of the API client.
+      const token = await getAuthToken(t);
       if (!token) {
         return [
           {
@@ -296,44 +349,12 @@ if (window.location.href.includes("index.html")) {
       // We have a token, now get the card and fetch actions
       const card = await t.card("id");
 
-      const r = await fetch(
+      const response = await fetch(
         `https://api.trello.com/1/cards/${card.id}/actions?filter=updateCard:idList,createCard&key=${APP_KEY}&token=${token}`
       );
-      const actions = await r.json();
-      console.log(actions);
+      const actions = await response.json();
 
-      const history = actions
-        .filter(
-          (action) =>
-            action.type === "createCard" ||
-            (action.type === "updateCard" && action.data.listAfter)
-        )
-        .map((action) => ({
-          listName:
-            action.type === "createCard"
-              ? action.data.list.name
-              : action.data.listAfter.name,
-          enteredAt: action.date,
-        }))
-        .reverse(); // Trello returns actions newest-first
-
-      // If no createCard action exists (copied cards), add initial entry using card ID timestamp
-      if (history.length > 0 && actions.length > 0) {
-        const firstAction = actions[actions.length - 1]; // Oldest action (after reversing order)
-
-        // Check if the first action is NOT a createCard
-        if (firstAction.type === "updateCard" && firstAction.data.listBefore) {
-          // Card was moved, so it existed before - extract creation time from card ID
-          const timestamp = parseInt(card.id.substring(0, 8), 16);
-          const creationDate = new Date(timestamp * 1000);
-
-          // Add the initial list entry at the beginning
-          history.unshift({
-            listName: firstAction.data.listBefore.name,
-            enteredAt: creationDate.toISOString(),
-          });
-        }
-      }
+      const history = buildCardHistory(actions, card.id);
 
       renderTimeInList(history);
     } catch (error) {
@@ -352,8 +373,7 @@ if (window.location.href.includes("index.html")) {
     {
       "on-enable": async function (t, options) {
         console.log("Power-Up enabled, checking authorization.");
-        const api = await t.getRestApi();
-        const token = await api.getToken();
+        const token = await getAuthToken(t);
 
         if (!token) {
           return t.popup({
@@ -379,8 +399,7 @@ if (window.location.href.includes("index.html")) {
       },
       "card-badges": async function (t, options) {
         try {
-          const api = await t.getRestApi();
-          const token = await api.getToken();
+          const token = await getAuthToken(t);
 
           if (!token) {
             return []; // Don't show badge if not authorized
@@ -400,9 +419,7 @@ if (window.location.href.includes("index.html")) {
             startDate = dayjs(actions[0].date).toDate();
           } else {
             // No actions found - extract creation timestamp from card ID
-            // Trello IDs are MongoDB ObjectIDs: first 8 hex chars = Unix timestamp
-            const timestamp = parseInt(card.id.substring(0, 8), 16);
-            startDate = new Date(timestamp * 1000);
+            startDate = getCardCreationDate(card.id);
           }
 
           const duration = calculateBusinessTime(startDate, new Date());
