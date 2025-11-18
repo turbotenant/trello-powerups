@@ -189,44 +189,43 @@ if (window.location.href.includes("index.html")) {
 
   // We need to handle the rendering when the iframe (index.html) loads
   window.addEventListener("load", () => {
-    console.log("iframe loaded");
-    t.card("id", "idList")
-      .then((card) => {
-        return t.list("name").then((list) => {
-          return { card, list };
-        });
-      })
-      .then(({ card, list }) => {
-        return t
-          .get(card.id, "private", "timeInListHistory", [])
-          .then((history) => {
-            const lastEntry =
-              history.length > 0 ? history[history.length - 1] : null;
+    const t = TrelloPowerUp.iframe();
 
-            if (!lastEntry || lastEntry.listId !== card.idList) {
-              // Card is in a new list, or this is the first time we're seeing it.
-              const newHistory = [
-                ...history,
-                {
-                  listId: card.idList,
+    t.card("id")
+      .then(function (card) {
+        return t
+          .getRestApi()
+          .get(
+            "/cards/" + card.id + "/actions?filter=updateCard:idList,createCard"
+          )
+          .then(function (actions) {
+            const history = actions
+              .filter((action) => {
+                return (
+                  action.type === "createCard" ||
+                  (action.type === "updateCard" && action.data.listAfter)
+                );
+              })
+              .map((action) => {
+                const list =
+                  action.type === "createCard"
+                    ? action.data.list
+                    : action.data.listAfter;
+                return {
                   listName: list.name,
-                  enteredAt: new Date().toISOString(),
-                },
-              ];
-              // Save the updated history and then render it.
-              return t
-                .set(card.id, "private", "timeInListHistory", newHistory)
-                .then(() => newHistory);
-            } else {
-              // Card has not moved since last view.
-              return history;
-            }
+                  enteredAt: action.date,
+                };
+              })
+              .reverse(); // Trello returns actions newest-first
+
+            renderTimeInList(history);
+            t.sizeTo("#content");
           });
       })
-      .then((history) => {
-        renderTimeInList(history);
-        // We also need to resize the iframe to fit the content
-        t.sizeTo("#content");
+      .catch(function (error) {
+        console.error("Error fetching card history:", error);
+        document.getElementById("time-list").innerHTML =
+          "<p>Error loading history.</p>";
       });
   });
 } else {
@@ -249,11 +248,54 @@ if (window.location.href.includes("index.html")) {
       };
     },
     "card-badges": function (t, options) {
-      console.log("🏷️ card-badges callback triggered");
+      return t
+        .card("id")
+        .then(function (card) {
+          return t
+            .getRestApi()
+            .get(
+              "/cards/" +
+                card.id +
+                "/actions?filter=updateCard:idList,createCard&limit=1"
+            )
+            .then(function (actions) {
+              if (actions && actions.length > 0) {
+                const lastMoveDate = dayjs(actions[0].date).toDate();
+                const duration = calculateBusinessTime(
+                  lastMoveDate,
+                  new Date()
+                );
+                return [
+                  {
+                    text: `⏱️ ${duration}`,
+                    color: "blue",
+                  },
+                ];
+              }
+              return [];
+            });
+        })
+        .catch(function (error) {
+          console.error("Error fetching card badge info:", error);
+          return [];
+        });
+    },
+    "board-buttons": function (t, options) {
+      console.log("🔘 board-buttons callback triggered");
       return [
         {
-          text: "⏱️ Test",
-          color: "blue",
+          icon: {
+            dark: "https://cdn-icons-png.flaticon.com/512/2088/2088617.png",
+            light: "https://cdn-icons-png.flaticon.com/512/2088/2088617.png",
+          },
+          text: "Time Tracking",
+          callback: function (t) {
+            return t.popup({
+              title: "Time in List",
+              url: "./board-stats.html",
+              height: 300,
+            });
+          },
         },
       ];
     },
