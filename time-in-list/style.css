@@ -71,11 +71,11 @@ body {
 }
 
 .pause-button.active {
-  background-color: #eb5a46;
+  background-color: #61bd4f; /* green - timer active */
 }
 
 .pause-button.paused {
-  background-color: #61bd4f;
+  background-color: #eb5a46; /* red - timer paused */
 }
 
 .paused-time-summary {

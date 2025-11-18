@@ -355,6 +355,38 @@ const togglePauseResume = async (t) => {
   }
 };
 
+// ===== PAUSE/RESUME UI CONSTANTS =====
+
+const PAUSE_RESUME_COLORS = {
+  active: "green",
+  paused: "red",
+};
+
+const PAUSE_RESUME_TEXT = {
+  pauseButton: "⏸️ Pause Timer",
+  resumeButton: "⏯️ Resume Timer",
+  pauseBadge: "⏸️ Pause",
+  resumeBadge: "⏯️ Resume",
+  pausedMessage: "Timer paused! ⏸️",
+  resumedMessage: "Timer resumed! ⏱️",
+};
+
+/**
+ * Shared callback for pause/resume button clicks.
+ * Shows an alert and closes the popup to refresh.
+ * @param {Object} t - The Trello Power-Up interface.
+ */
+const pauseResumeCallback = async (t) => {
+  const nowPaused = await togglePauseResume(t);
+  await t.alert({
+    message: nowPaused
+      ? PAUSE_RESUME_TEXT.pausedMessage
+      : PAUSE_RESUME_TEXT.resumedMessage,
+    duration: 3,
+  });
+  return t.closePopup();
+};
+
 // ===== DETECT CONTEXT =====
 // Check if we're in an iframe context or main Power-Up context
 if (window.location.href.includes("index.html")) {
@@ -419,8 +451,11 @@ if (window.location.href.includes("index.html")) {
         const buttonClass = isPaused
           ? "pause-button paused"
           : "pause-button active";
-        const buttonText = isPaused ? "⏯️ Resume Timer" : "⏸️ Pause Timer";
-        const buttonBgColor = isPaused ? "#61bd4f" : "#eb5a46";
+        const buttonText = isPaused
+          ? PAUSE_RESUME_TEXT.resumeButton
+          : PAUSE_RESUME_TEXT.pauseButton;
+        // Map color names to hex values for inline styles
+        const buttonBgColor = isPaused ? "#eb5a46" : "#61bd4f"; // paused=red : active=green
 
         let html = `
           <div class="pause-button-container" style="margin-bottom: 16px; text-align: center;">
@@ -572,7 +607,9 @@ if (window.location.href.includes("index.html")) {
           return [
             {
               text: isPaused ? `⏱️ ${duration} ⏸️` : `⏱️ ${duration}`,
-              color: isPaused ? "red" : "blue",
+              color: isPaused
+                ? PAUSE_RESUME_COLORS.paused
+                : PAUSE_RESUME_COLORS.active,
             },
           ];
         } catch (error) {
@@ -589,19 +626,10 @@ if (window.location.href.includes("index.html")) {
 
           const button = {
             icon: "https://cdn-icons-png.flaticon.com/512/2088/2088617.png",
-            text: isPaused ? "⏯️ Resume Timer" : "⏸️ Pause Timer",
-            callback: async function (t) {
-              console.log("Button clicked!");
-              const nowPaused = await togglePauseResume(t);
-
-              await t.alert({
-                message: nowPaused ? "Timer paused! ⏸️" : "Timer resumed! ⏱️",
-                duration: 3,
-              });
-
-              // Refresh the card to update badges
-              return t.closePopup();
-            },
+            text: isPaused
+              ? PAUSE_RESUME_TEXT.resumeButton
+              : PAUSE_RESUME_TEXT.pauseButton,
+            callback: pauseResumeCallback,
           };
 
           console.log("Returning button:", button);
@@ -611,42 +639,29 @@ if (window.location.href.includes("index.html")) {
           return [];
         }
       },
-      // "card-detail-badges": function (t, options) {
-      //   return t
-      //     .getRestApi()
-      //     .isAuthorized()
-      //     .then(function (isAuthorized) {
-      //       if (!isAuthorized) {
-      //         return []; // Don't show badge if not authorized
-      //       }
-      //       return t.card("id").then(function (card) {
-      //         return t
-      //           .getRestApi()
-      //           .get(
-      //             "/cards/" +
-      //               card.id +
-      //               "/actions?filter=updateCard:idList,createCard&limit=1"
-      //           )
-      //           .then(function (actions) {
-      //             if (actions && actions.length > 0) {
-      //               const lastMoveDate = dayjs(actions[0].date).toDate();
-      //               const duration = calculateBusinessTime(
-      //                 lastMoveDate,
-      //                 new Date()
-      //               );
-      //               return [
-      //                 {
-      //                   title: "Time in Current List",
-      //                   text: duration,
-      //                   color: "blue",
-      //                 },
-      //               ];
-      //             }
-      //             return [];
-      //           });
-      //       });
-      //     });
-      // },
+      "card-detail-badges": async function (t, options) {
+        console.log("✅ card-detail-badges callback triggered");
+        try {
+          const pauseEvents = await getPauseEvents(t);
+          const isPaused = isCardPaused(pauseEvents);
+
+          return [
+            {
+              title: isPaused ? "Timer Paused" : "Timer Active",
+              text: isPaused
+                ? PAUSE_RESUME_TEXT.resumeBadge
+                : PAUSE_RESUME_TEXT.pauseBadge,
+              color: isPaused
+                ? PAUSE_RESUME_COLORS.paused
+                : PAUSE_RESUME_COLORS.active,
+              callback: pauseResumeCallback,
+            },
+          ];
+        } catch (error) {
+          console.error("Error in card-detail-badges:", error);
+          return [];
+        }
+      },
     },
     {
       appKey: APP_KEY,
