@@ -138,12 +138,40 @@ const calculateBusinessTime = (startDate, endDate) => {
   const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
   const minutes = totalMinutes % 60;
 
-  let result = "";
-  if (days > 0) result += `${days}d `;
-  if (hours > 0) result += `${hours}h `;
-  if (minutes > 0) result += `${minutes}m`;
+  // Format based on duration length for better readability
+  // Months (30+ days)
+  if (days >= 30) {
+    const months = Math.floor(days / 30);
+    return months === 1 ? "1 month" : `${months} months`;
+  }
 
-  return result.trim();
+  // Weeks (7+ days)
+  if (days >= 7) {
+    const weeks = Math.floor(days / 7);
+    return weeks === 1 ? "1 week" : `${weeks} weeks`;
+  }
+
+  // Days
+  if (days > 0) {
+    if (hours === 0 && minutes === 0) {
+      return days === 1 ? "1 day" : `${days} days`;
+    }
+    // Show days + hours for partial days
+    let result = days === 1 ? "1 day" : `${days} days`;
+    if (hours > 0) result += ` ${hours}h`;
+    return result;
+  }
+
+  // Hours
+  if (hours > 0) {
+    if (minutes === 0) {
+      return hours === 1 ? "1 hour" : `${hours} hours`;
+    }
+    return `${hours}h ${minutes}m`;
+  }
+
+  // Minutes only
+  return minutes === 1 ? "1 minute" : `${minutes} minutes`;
 };
 
 // ===== DETECT CONTEXT =====
@@ -178,21 +206,76 @@ if (window.location.href.includes("index.html")) {
         }
 
         const now = new Date();
-        let html = "";
 
-        history.forEach((entry, index) => {
+        // First pass: calculate durations in minutes for percentage calculation
+        const listData = history.map((entry, index) => {
           const startDate = dayjs(entry.enteredAt).toDate();
           const endDate =
             index < history.length - 1
               ? dayjs(history[index + 1].enteredAt).toDate()
               : now;
 
-          const duration = calculateBusinessTime(startDate, endDate);
+          // Calculate duration in minutes for percentage
+          let totalMinutes = 0;
+          let currentDate = dayjs(startDate);
+          const end = dayjs(endDate);
+          const holidaysByYear = {};
+
+          while (currentDate.isBefore(end)) {
+            const year = currentDate.year();
+            if (!holidaysByYear[year]) {
+              holidaysByYear[year] = getHolidaysForYear(year);
+            }
+            const holidays = holidaysByYear[year];
+            const formattedDate = currentDate.format("YYYY-MM-DD");
+            const dayOfWeek = currentDate.day();
+
+            if (
+              dayOfWeek > 0 &&
+              dayOfWeek < 6 &&
+              !holidays.includes(formattedDate)
+            ) {
+              const startOfDay = currentDate.startOf("day");
+              const endOfDay = currentDate.endOf("day");
+              const effectiveStart = currentDate.isSame(startDate, "day")
+                ? dayjs(startDate)
+                : startOfDay;
+              const effectiveEnd = currentDate.isSame(endDate, "day")
+                ? dayjs(endDate)
+                : endOfDay;
+              totalMinutes += effectiveEnd.diff(effectiveStart, "minute");
+            }
+            currentDate = currentDate.add(1, "day");
+          }
+
+          return {
+            listName: entry.listName,
+            minutes: totalMinutes,
+            formatted: calculateBusinessTime(startDate, endDate),
+          };
+        });
+
+        // Calculate total minutes for percentage
+        const totalMinutes = listData.reduce(
+          (sum, item) => sum + item.minutes,
+          0
+        );
+
+        // Second pass: render with progress bars
+        let html = "";
+        listData.forEach((item) => {
+          const percentage =
+            totalMinutes > 0 ? (item.minutes / totalMinutes) * 100 : 0;
 
           html += `<div class="list-item">
-                   <span class="list-name">${entry.listName}</span>
-                   <span class="list-time">${duration}</span>
-                 </div>`;
+                     <div class="list-item-header">
+                       <span class="list-name">${item.listName}</span>
+                       <span class="list-time">${item.formatted}</span>
+                     </div>
+                     <div class="progress-bar">
+                       <div class="progress-fill" style="width: ${percentage}%"></div>
+                     </div>
+                   </div>`;
         });
 
         timeListElement.innerHTML = html;
@@ -210,30 +293,30 @@ if (window.location.href.includes("index.html")) {
         ];
       }
 
+      // We have a token, now get the card and fetch actions
       const card = await t.card("id");
 
       const r = await fetch(
         `https://api.trello.com/1/cards/${card.id}/actions?filter=updateCard:idList,createCard&key=${APP_KEY}&token=${token}`
       );
-      const response = await r.json();
-      const actions = response.actions;
-      console.log({ actions, response, r });
-      // const history = actions
-      //   .filter(
-      //     (action) =>
-      //       action.type === "createCard" ||
-      //       (action.type === "updateCard" && action.data.listAfter)
-      //   )
-      //   .map((action) => ({
-      //     listName:
-      //       action.type === "createCard"
-      //         ? action.data.list.name
-      //         : action.data.listAfter.name,
-      //     enteredAt: action.date,
-      //   }))
-      //   .reverse(); // Trello returns actions newest-first
+      const actions = await r.json();
 
-      // renderTimeInList(history);
+      const history = actions
+        .filter(
+          (action) =>
+            action.type === "createCard" ||
+            (action.type === "updateCard" && action.data.listAfter)
+        )
+        .map((action) => ({
+          listName:
+            action.type === "createCard"
+              ? action.data.list.name
+              : action.data.listAfter.name,
+          enteredAt: action.date,
+        }))
+        .reverse(); // Trello returns actions newest-first
+
+      renderTimeInList(history);
     } catch (error) {
       console.error("Error during Power-Up execution:", error);
       document.getElementById("time-list").innerHTML =
