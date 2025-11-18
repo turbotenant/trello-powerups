@@ -83,6 +83,13 @@ const getHolidaysForYear = (year) => {
   return holidays;
 };
 
+function showAuthorizePopup(t) {
+  return t.popup({
+    title: "Authorize to continue",
+    url: "./authorize.html",
+  });
+}
+
 /**
  * Calculates the working time between two dates, excluding weekends and holidays.
  * @param {Date} startDate The start of the period.
@@ -143,107 +150,97 @@ const calculateBusinessTime = (startDate, endDate) => {
 // Check if we're in an iframe context or main Power-Up context
 if (window.location.href.includes("index.html")) {
   // IFRAME CODE - runs when index.html is loaded
-  window.addEventListener("load", () => {
+  window.addEventListener("load", async () => {
     const t = TrelloPowerUp.iframe({
       appKey: APP_KEY,
       appName: APP_NAME,
     });
+    try {
+      const renderTimeInList = (history) => {
+        const timeListElement = document.getElementById("time-list");
 
-    const renderTimeInList = (history) => {
-      const timeListElement = document.getElementById("time-list");
+        // Clear previous content
+        timeListElement.innerHTML = "";
 
-      // Clear previous content
-      timeListElement.innerHTML = "";
+        // --- DEBUGGING LINE ---
+        // Let's display the number of entries in our history array.
+        const debugInfo = document.createElement("p");
+        debugInfo.style.color = "#888";
+        debugInfo.textContent = `(Debug: ${
+          history ? history.length : 0
+        } history entries found)`;
+        timeListElement.appendChild(debugInfo);
+        // --- END DEBUGGING ---
 
-      // --- DEBUGGING LINE ---
-      // Let's display the number of entries in our history array.
-      const debugInfo = document.createElement("p");
-      debugInfo.style.color = "#888";
-      debugInfo.textContent = `(Debug: ${
-        history ? history.length : 0
-      } history entries found)`;
-      timeListElement.appendChild(debugInfo);
-      // --- END DEBUGGING ---
-
-      if (!history || history.length === 0) {
-        timeListElement.innerHTML = "<p>No movement history yet.</p>";
-        return;
-      }
-
-      const now = new Date();
-      let html = "";
-
-      history.forEach((entry, index) => {
-        const startDate = dayjs(entry.enteredAt).toDate();
-        const endDate =
-          index < history.length - 1
-            ? dayjs(history[index + 1].enteredAt).toDate()
-            : now;
-
-        const duration = calculateBusinessTime(startDate, endDate);
-
-        html += `<div class="list-item">
-                   <span class="list-name">${entry.listName}</span>
-                   <span class="list-time">${duration}</span>
-                 </div>`;
-      });
-
-      timeListElement.innerHTML = html;
-    };
-
-    t.getRestApi()
-      .isAuthorized()
-      .then(function (isAuthorized) {
-        if (!isAuthorized) {
-          document.getElementById("time-list").innerHTML =
-            '<p>Please authorize this Power-Up to see card history.</p><button id="auth-btn-iframe">Authorize</button>';
-          document
-            .getElementById("auth-btn-iframe")
-            .addEventListener("click", function () {
-              t.getRestApi().authorize({ scope: "read" });
-            });
-          t.sizeTo("#content");
+        if (!history || history.length === 0) {
+          timeListElement.innerHTML = "<p>No movement history yet.</p>";
           return;
         }
 
-        t.card("id").then(function (card) {
-          return t
-            .getRestApi()
-            .get(
-              "/cards/" +
-                card.id +
-                "/actions?filter=updateCard:idList,createCard"
-            )
-            .then(function (actions) {
-              const history = actions
-                .filter((action) => {
-                  return (
-                    action.type === "createCard" ||
-                    (action.type === "updateCard" && action.data.listAfter)
-                  );
-                })
-                .map((action) => {
-                  const list =
-                    action.type === "createCard"
-                      ? action.data.list
-                      : action.data.listAfter;
-                  return {
-                    listName: list.name,
-                    enteredAt: action.date,
-                  };
-                })
-                .reverse(); // Trello returns actions newest-first
+        const now = new Date();
+        let html = "";
 
-              renderTimeInList(history);
-              t.sizeTo("#content");
-            });
+        history.forEach((entry, index) => {
+          const startDate = dayjs(entry.enteredAt).toDate();
+          const endDate =
+            index < history.length - 1
+              ? dayjs(history[index + 1].enteredAt).toDate()
+              : now;
+
+          const duration = calculateBusinessTime(startDate, endDate);
+
+          html += `<div class="list-item">
+                   <span class="list-name">${entry.listName}</span>
+                   <span class="list-time">${duration}</span>
+                 </div>`;
         });
-      })
-      .catch(function (error) {
-        console.error("Error fetching card history:", error);
-        document.getElementById("time-list").innerHTML =
-          "<p>Error loading history.</p>";
-      });
+
+        timeListElement.innerHTML = html;
+      };
+
+      const api = await t.getRestApi();
+      const token = await api.getToken();
+      // We now have an instance of the API client.
+      if (!token) {
+        return [
+          {
+            text: "Authorize",
+            callback: showAuthorizePopup,
+          },
+        ];
+      }
+
+      const card = await t.card("id");
+
+      const r = await fetch(
+        `https://api.trello.com/1/cards/${card.id}/actions?filter=updateCard:idList,createCard&key=${APP_KEY}&token=${token}`
+      );
+      const response = await r.json();
+      const actions = response.actions;
+      console.log({ actions, response, r });
+      // const history = actions
+      //   .filter(
+      //     (action) =>
+      //       action.type === "createCard" ||
+      //       (action.type === "updateCard" && action.data.listAfter)
+      //   )
+      //   .map((action) => ({
+      //     listName:
+      //       action.type === "createCard"
+      //         ? action.data.list.name
+      //         : action.data.listAfter.name,
+      //     enteredAt: action.date,
+      //   }))
+      //   .reverse(); // Trello returns actions newest-first
+
+      // renderTimeInList(history);
+    } catch (error) {
+      console.error("Error during Power-Up execution:", error);
+      document.getElementById("time-list").innerHTML =
+        "<p>An unexpected error occurred.</p>";
+    } finally {
+      t.sizeTo("#content");
+    }
   });
 } else {
   // MAIN POWER-UP CODE - runs when Trello loads the Power-Up
@@ -251,7 +248,6 @@ if (window.location.href.includes("index.html")) {
 
   TrelloPowerUp.initialize(
     {
-      /*
       "on-enable": function (t, options) {
         console.log("Power-Up enabled, checking authorization.");
         return t
@@ -269,7 +265,6 @@ if (window.location.href.includes("index.html")) {
             }
           });
       },
-      */
       "card-back-section": function (t, options) {
         console.log("✅ card-back-section callback triggered");
         return {

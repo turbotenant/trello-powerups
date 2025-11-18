@@ -42,7 +42,7 @@
       authBtn.disabled = true;
 
       t.getRestApi()
-        .authorize({ scope: 'read' })
+      .authorize({ scope: "read,write" })
         .then(function() {
           return t.closePopup();
         })
