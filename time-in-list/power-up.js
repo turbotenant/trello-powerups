@@ -300,6 +300,7 @@ if (window.location.href.includes("index.html")) {
         `https://api.trello.com/1/cards/${card.id}/actions?filter=updateCard:idList,createCard&key=${APP_KEY}&token=${token}`
       );
       const actions = await r.json();
+      console.log(actions);
 
       const history = actions
         .filter(
@@ -316,6 +317,24 @@ if (window.location.href.includes("index.html")) {
         }))
         .reverse(); // Trello returns actions newest-first
 
+      // If no createCard action exists (copied cards), add initial entry using card ID timestamp
+      if (history.length > 0 && actions.length > 0) {
+        const firstAction = actions[actions.length - 1]; // Oldest action (after reversing order)
+
+        // Check if the first action is NOT a createCard
+        if (firstAction.type === "updateCard" && firstAction.data.listBefore) {
+          // Card was moved, so it existed before - extract creation time from card ID
+          const timestamp = parseInt(card.id.substring(0, 8), 16);
+          const creationDate = new Date(timestamp * 1000);
+
+          // Add the initial list entry at the beginning
+          history.unshift({
+            listName: firstAction.data.listBefore.name,
+            enteredAt: creationDate.toISOString(),
+          });
+        }
+      }
+
       renderTimeInList(history);
     } catch (error) {
       console.error("Error during Power-Up execution:", error);
@@ -331,22 +350,18 @@ if (window.location.href.includes("index.html")) {
 
   TrelloPowerUp.initialize(
     {
-      "on-enable": function (t, options) {
+      "on-enable": async function (t, options) {
         console.log("Power-Up enabled, checking authorization.");
-        return t
-          .getRestApi()
-          .isAuthorized()
-          .then(function (isAuthorized) {
-            if (isAuthorized) {
-              return;
-            } else {
-              return t.popup({
-                title: "Authorize Account",
-                url: "./authorize.html",
-                height: 140,
-              });
-            }
+        const api = await t.getRestApi();
+        const token = await api.getToken();
+
+        if (!token) {
+          return t.popup({
+            title: "Authorize Account",
+            url: "./authorize.html",
+            height: 140,
           });
+        }
       },
       "card-back-section": function (t, options) {
         console.log("✅ card-back-section callback triggered");
