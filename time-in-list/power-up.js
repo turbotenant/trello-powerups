@@ -1,10 +1,10 @@
-/* global TrelloPowerUp, dateFns */
+/* global TrelloPowerUp, dayjs */
 
 // === DEBUG LOGGING ===
 console.log("🚀 Power-Up script loaded!");
 console.log("📍 Current URL:", window.location.href);
 console.log("🔍 TrelloPowerUp available:", typeof TrelloPowerUp);
-console.log("📅 dateFns available:", typeof dateFns);
+console.log("📅 dayjs available:", typeof dayjs);
 // === END DEBUG ===
 
 // --- Holiday Configuration ---
@@ -39,9 +39,8 @@ const getHolidaysForYear = (year) => {
 
   // Calculate fixed holidays
   HOLIDAY_RULES.fixed.forEach((rule) => {
-    const holiday = dateFns.format(
-      new Date(year, rule.month, rule.day),
-      "yyyy-MM-dd"
+    const holiday = dayjs(new Date(year, rule.month, rule.day)).format(
+      "YYYY-MM-DD"
     );
     holidays.push(holiday);
   });
@@ -50,26 +49,34 @@ const getHolidaysForYear = (year) => {
   HOLIDAY_RULES.floating.forEach((rule) => {
     let holiday;
     if (rule.week === -1) {
-      // Last week of the month
-      const lastDayOfMonth = dateFns.endOfMonth(new Date(year, rule.month));
-      holiday = dateFns.previousDay(lastDayOfMonth, rule.dayOfWeek);
+      // Last week of the month - find last occurrence of dayOfWeek
+      let day = dayjs(new Date(year, rule.month + 1, 0)); // Last day of month
+      while (day.day() !== rule.dayOfWeek) {
+        day = day.subtract(1, "day");
+      }
+      holiday = day;
     } else {
-      const firstDayOfMonth = new Date(year, rule.month, 1);
-      let day = dateFns.startOfMonth(firstDayOfMonth);
-      let weekCount = 0;
-      while (weekCount < rule.week) {
-        day = dateFns.nextDay(day, rule.dayOfWeek);
-        weekCount++;
+      // Find Nth occurrence of dayOfWeek
+      let day = dayjs(new Date(year, rule.month, 1));
+      let count = 0;
+      while (count < rule.week) {
+        if (day.day() === rule.dayOfWeek) {
+          count++;
+          if (count < rule.week) {
+            day = day.add(7, "day");
+          }
+        } else {
+          day = day.add(1, "day");
+        }
       }
       holiday = day;
     }
 
-    holidays.push(dateFns.format(holiday, "yyyy-MM-dd"));
+    holidays.push(holiday.format("YYYY-MM-DD"));
 
     // Special case: Day after Thanksgiving
     if (rule.name === "Thanksgiving Day") {
-      const dayAfter = dateFns.addDays(holiday, 1);
-      holidays.push(dateFns.format(dayAfter, "yyyy-MM-dd"));
+      holidays.push(holiday.add(1, "day").format("YYYY-MM-DD"));
     }
   });
 
@@ -86,33 +93,34 @@ const calculateBusinessTime = (startDate, endDate) => {
   let totalMinutes = 0;
   const holidaysByYear = {};
 
-  let currentDate = new Date(startDate);
+  let currentDate = dayjs(startDate);
+  const end = dayjs(endDate);
 
-  while (currentDate < endDate) {
-    const year = currentDate.getFullYear();
+  while (currentDate.isBefore(end)) {
+    const year = currentDate.year();
     if (!holidaysByYear[year]) {
       holidaysByYear[year] = getHolidaysForYear(year);
     }
     const holidays = holidaysByYear[year];
-    const formattedDate = dateFns.format(currentDate, "yyyy-MM-dd");
-    const dayOfWeek = currentDate.getDay();
+    const formattedDate = currentDate.format("YYYY-MM-DD");
+    const dayOfWeek = currentDate.day();
 
     // Check if it's a weekday and not a holiday
     if (dayOfWeek > 0 && dayOfWeek < 6 && !holidays.includes(formattedDate)) {
-      const startOfDay = dateFns.startOfDay(currentDate);
-      const endOfDay = dateFns.endOfDay(currentDate);
+      const startOfDay = currentDate.startOf("day");
+      const endOfDay = currentDate.endOf("day");
 
-      const effectiveStart = dateFns.isSameDay(currentDate, startDate)
-        ? startDate
+      const effectiveStart = currentDate.isSame(startDate, "day")
+        ? dayjs(startDate)
         : startOfDay;
-      const effectiveEnd = dateFns.isSameDay(currentDate, endDate)
-        ? endDate
+      const effectiveEnd = currentDate.isSame(endDate, "day")
+        ? dayjs(endDate)
         : endOfDay;
 
-      totalMinutes += dateFns.differenceInMinutes(effectiveEnd, effectiveStart);
+      totalMinutes += effectiveEnd.diff(effectiveStart, "minute");
     }
 
-    currentDate = dateFns.addDays(currentDate, 1);
+    currentDate = currentDate.add(1, "day");
   }
 
   if (totalMinutes < 1) {
@@ -162,10 +170,10 @@ if (window.location.href.includes("index.html")) {
     let html = "";
 
     history.forEach((entry, index) => {
-      const startDate = dateFns.parseISO(entry.enteredAt);
+      const startDate = dayjs(entry.enteredAt).toDate();
       const endDate =
         index < history.length - 1
-          ? dateFns.parseISO(history[index + 1].enteredAt)
+          ? dayjs(history[index + 1].enteredAt).toDate()
           : now;
 
       const duration = calculateBusinessTime(startDate, endDate);
