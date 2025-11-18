@@ -189,7 +189,10 @@ if (window.location.href.includes("index.html")) {
 
   // We need to handle the rendering when the iframe (index.html) loads
   window.addEventListener("load", () => {
-    const t = TrelloPowerUp.iframe();
+    const t = TrelloPowerUp.iframe({
+      appKey: "5a205cbf8eaf72b61ff36eeae6e7b947",
+      appName: "Time in List",
+    });
 
     t.card("id")
       .then(function (card) {
@@ -232,91 +235,131 @@ if (window.location.href.includes("index.html")) {
   // MAIN POWER-UP CODE - runs when Trello loads the Power-Up
   console.log("🎯 Initializing Power-Up in main context");
 
-  TrelloPowerUp.initialize({
-    "on-enable": function (t, options) {
-      console.log("Power-Up enabled, checking authorization.");
-      return t
-        .getRestApi()
-        .isAuthorized()
-        .then(function (isAuthorized) {
-          if (isAuthorized) {
-            return;
-          } else {
-            return t.popup({
-              title: "Authorize Account",
-              url: "./authorize.html",
-              height: 140,
-            });
-          }
-        });
-    },
-    "card-back-section": function (t, options) {
-      console.log("✅ card-back-section callback triggered");
-      return {
-        title: "Time in List Facu",
-        icon: "https://cdn-icons-png.flaticon.com/512/2088/2088617.png",
-        content: {
-          type: "iframe",
-          url: t.signUrl(
-            "https://turbotenant.github.io/trello-powerups/time-in-list/index.html"
-          ),
-          height: 200,
-        },
-      };
-    },
-    "card-badges": function (t, options) {
-      return t
-        .card("id")
-        .then(function (card) {
-          return t
-            .getRestApi()
-            .get(
-              "/cards/" +
-                card.id +
-                "/actions?filter=updateCard:idList,createCard&limit=1"
-            )
-            .then(function (actions) {
-              if (actions && actions.length > 0) {
-                const lastMoveDate = dayjs(actions[0].date).toDate();
-                const duration = calculateBusinessTime(
-                  lastMoveDate,
-                  new Date()
-                );
-                return [
-                  {
-                    text: `⏱️ ${duration}`,
-                    color: "blue",
-                  },
-                ];
-              }
-              return [];
-            });
-        })
-        .catch(function (error) {
-          console.error("Error fetching card badge info:", error);
-          return [];
-        });
-    },
-    "board-buttons": function (t, options) {
-      console.log("🔘 board-buttons callback triggered");
-      return [
-        {
-          icon: {
-            dark: "https://cdn-icons-png.flaticon.com/512/2088/2088617.png",
-            light: "https://cdn-icons-png.flaticon.com/512/2088/2088617.png",
+  TrelloPowerUp.initialize(
+    {
+      "on-enable": function (t, options) {
+        console.log("Power-Up enabled, checking authorization.");
+        return t
+          .getRestApi()
+          .isAuthorized()
+          .then(function (isAuthorized) {
+            if (isAuthorized) {
+              return;
+            } else {
+              return t.popup({
+                title: "Authorize Account",
+                url: "./authorize.html",
+                height: 140,
+              });
+            }
+          });
+      },
+      "card-back-section": function (t, options) {
+        console.log("✅ card-back-section callback triggered");
+        return {
+          title: "Time in List Facu",
+          icon: "https://cdn-icons-png.flaticon.com/512/2088/2088617.png",
+          content: {
+            type: "iframe",
+            url: t.signUrl(
+              "https://turbotenant.github.io/trello-powerups/time-in-list/index.html"
+            ),
+            height: 200,
           },
-          text: "Time Tracking",
-          callback: function (t) {
-            return t.popup({
-              title: "Time in List",
-              url: "./board-stats.html",
-              height: 300,
-            });
+        };
+      },
+      "card-badges": function (t, options) {
+        return t
+          .card("id")
+          .then(function (card) {
+            return t
+              .getRestApi()
+              .get(
+                "/cards/" +
+                  card.id +
+                  "/actions?filter=updateCard:idList,createCard&limit=1"
+              )
+              .then(function (actions) {
+                if (actions && actions.length > 0) {
+                  const lastMoveDate = dayjs(actions[0].date).toDate();
+                  const duration = calculateBusinessTime(
+                    lastMoveDate,
+                    new Date()
+                  );
+                  return [
+                    {
+                      text: `⏱️ ${duration}`,
+                      color: "blue",
+                    },
+                  ];
+                }
+                return [];
+              });
+          })
+          .catch(function (error) {
+            console.error("Error fetching card badge info:", error);
+            return [];
+          });
+      },
+      "card-detail-badges": function (t, options) {
+        return t
+          .card("id")
+          .then(function (card) {
+            return t
+              .getRestApi()
+              .get(
+                "/cards/" +
+                  card.id +
+                  "/actions?filter=updateCard:idList,createCard&limit=1"
+              )
+              .then(function (actions) {
+                if (actions && actions.length > 0) {
+                  const lastMoveDate = dayjs(actions[0].date).toDate();
+                  const duration = calculateBusinessTime(
+                    lastMoveDate,
+                    new Date()
+                  );
+                  return [
+                    {
+                      title: "Time in Current List",
+                      text: duration,
+                      color: "blue",
+                    },
+                  ];
+                }
+                return [];
+              });
+          })
+          .catch(function (error) {
+            console.error("Error fetching card detail badge info:", error);
+            return [];
+          });
+      },
+      "board-buttons": function (t, options) {
+        console.log("🔘 board-buttons callback triggered");
+        return [
+          {
+            icon: {
+              dark: "https://cdn-icons-png.flaticon.com/512/2088/2088617.png",
+              light: "https://cdn-icons-png.flaticon.com/512/2088/2088617.png",
+            },
+            text: "Time Tracking",
+            callback: function (t) {
+              return t.popup({
+                title: "Time in List",
+                url: "./board-stats.html",
+                height: 300,
+              });
+            },
           },
-        },
-      ];
+        ];
+      },
     },
-  });
+    {
+      appKey: "5a205cbf8eaf72b61ff36eeae6e7b947",
+      appName: "Time in List",
+    }
+  );
 
   console.log("✨ Power-Up initialization complete");
 }
