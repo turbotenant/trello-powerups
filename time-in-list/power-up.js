@@ -362,98 +362,101 @@ if (window.location.href.includes("index.html")) {
           },
         };
       },
-      /*
-      "card-badges": function (t, options) {
-        return t
-          .getRestApi()
-          .isAuthorized()
-          .then(function (isAuthorized) {
-            if (!isAuthorized) {
-              return []; // Don't show badge if not authorized
-            }
-            return t.card("id").then(function (card) {
-              return t
-                .getRestApi()
-                .get(
-                  "/cards/" +
-                    card.id +
-                    "/actions?filter=updateCard:idList,createCard&limit=1"
-                )
-                .then(function (actions) {
-                  if (actions && actions.length > 0) {
-                    const lastMoveDate = dayjs(actions[0].date).toDate();
-                    const duration = calculateBusinessTime(
-                      lastMoveDate,
-                      new Date()
-                    );
-                    return [
-                      {
-                        text: `⏱️ ${duration}`,
-                        color: "blue",
-                      },
-                    ];
-                  }
-                  return [];
-                });
-            });
-          });
-      },
-      "card-detail-badges": function (t, options) {
-        return t
-          .getRestApi()
-          .isAuthorized()
-          .then(function (isAuthorized) {
-            if (!isAuthorized) {
-              return []; // Don't show badge if not authorized
-            }
-            return t.card("id").then(function (card) {
-              return t
-                .getRestApi()
-                .get(
-                  "/cards/" +
-                    card.id +
-                    "/actions?filter=updateCard:idList,createCard&limit=1"
-                )
-                .then(function (actions) {
-                  if (actions && actions.length > 0) {
-                    const lastMoveDate = dayjs(actions[0].date).toDate();
-                    const duration = calculateBusinessTime(
-                      lastMoveDate,
-                      new Date()
-                    );
-                    return [
-                      {
-                        title: "Time in Current List",
-                        text: duration,
-                        color: "blue",
-                      },
-                    ];
-                  }
-                  return [];
-                });
-            });
-          });
-      },
-      "board-buttons": function (t, options) {
-        console.log("🔘 board-buttons callback triggered");
-        return [
-          {
-            icon: {
-              dark: "https://cdn-icons-png.flaticon.com/512/2088/2088617.png",
-              light: "https://cdn-icons-png.flaticon.com/512/2088/2088617.png",
+      "card-badges": async function (t, options) {
+        try {
+          const api = await t.getRestApi();
+          const token = await api.getToken();
+
+          if (!token) {
+            return []; // Don't show badge if not authorized
+          }
+
+          const card = await t.card("id");
+
+          const response = await fetch(
+            `https://api.trello.com/1/cards/${card.id}/actions?filter=updateCard:idList,createCard&key=${APP_KEY}&token=${token}&limit=1`
+          );
+          const actions = await response.json();
+
+          let startDate;
+
+          if (actions && actions.length > 0) {
+            // Card has movement history - use the last action date
+            startDate = dayjs(actions[0].date).toDate();
+          } else {
+            // No actions found - extract creation timestamp from card ID
+            // Trello IDs are MongoDB ObjectIDs: first 8 hex chars = Unix timestamp
+            const timestamp = parseInt(card.id.substring(0, 8), 16);
+            startDate = new Date(timestamp * 1000);
+          }
+
+          const duration = calculateBusinessTime(startDate, new Date());
+          return [
+            {
+              text: `⏱️ ${duration}`,
+              color: "blue",
             },
-            text: "Time Tracking",
-            callback: function (t) {
-              return t.popup({
-                title: "Time in List",
-                url: "./board-stats.html",
-                height: 300,
-              });
-            },
-          },
-        ];
+          ];
+        } catch (error) {
+          console.error("Error in card-badges:", error);
+          return [];
+        }
       },
-      */
+      // "card-detail-badges": function (t, options) {
+      //   return t
+      //     .getRestApi()
+      //     .isAuthorized()
+      //     .then(function (isAuthorized) {
+      //       if (!isAuthorized) {
+      //         return []; // Don't show badge if not authorized
+      //       }
+      //       return t.card("id").then(function (card) {
+      //         return t
+      //           .getRestApi()
+      //           .get(
+      //             "/cards/" +
+      //               card.id +
+      //               "/actions?filter=updateCard:idList,createCard&limit=1"
+      //           )
+      //           .then(function (actions) {
+      //             if (actions && actions.length > 0) {
+      //               const lastMoveDate = dayjs(actions[0].date).toDate();
+      //               const duration = calculateBusinessTime(
+      //                 lastMoveDate,
+      //                 new Date()
+      //               );
+      //               return [
+      //                 {
+      //                   title: "Time in Current List",
+      //                   text: duration,
+      //                   color: "blue",
+      //                 },
+      //               ];
+      //             }
+      //             return [];
+      //           });
+      //       });
+      //     });
+      // },
+      // "board-buttons": function (t, options) {
+      //   console.log("🔘 board-buttons callback triggered");
+      //   return [
+      //     {
+      //       icon: {
+      //         dark: "https://cdn-icons-png.flaticon.com/512/2088/2088617.png",
+      //         light: "https://cdn-icons-png.flaticon.com/512/2088/2088617.png",
+      //       },
+      //       text: "Time Tracking",
+      //       callback: function (t) {
+      //         return t.popup({
+      //           title: "Time in List",
+      //           url: "./board-stats.html",
+      //           height: 300,
+      //         });
+      //       },
+      //     },
+      //   ];
+      // },
     },
     {
       appKey: APP_KEY,
