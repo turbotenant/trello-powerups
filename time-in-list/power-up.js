@@ -233,6 +233,23 @@ if (window.location.href.includes("index.html")) {
   console.log("🎯 Initializing Power-Up in main context");
 
   TrelloPowerUp.initialize({
+    "on-enable": function (t, options) {
+      console.log("Power-Up enabled, checking authorization.");
+      return t
+        .getRestApi()
+        .isAuthorized()
+        .then(function (isAuthorized) {
+          if (isAuthorized) {
+            return;
+          } else {
+            return t.popup({
+              title: "Authorize Account",
+              url: "./authorize.html",
+              height: 140,
+            });
+          }
+        });
+    },
     "card-back-section": function (t, options) {
       console.log("✅ card-back-section callback triggered");
       return {
