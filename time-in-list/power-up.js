@@ -233,7 +233,9 @@ if (window.location.href.includes("index.html")) {
         icon: "https://cdn-icons-png.flaticon.com/512/2088/2088617.png",
         content: {
           type: "iframe",
-          url: t.signUrl("./index.html"),
+          url: t.signUrl(
+            "https://turbotenant.github.io/trello-powerups/time-in-list/index.html"
+          ),
           height: 200,
         },
       };
