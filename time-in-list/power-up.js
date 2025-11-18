@@ -260,6 +260,101 @@ const buildCardHistory = (actions, cardId) => {
   return history;
 };
 
+/**
+ * Gets pause events from card storage.
+ * @param {Object} t - The Trello Power-Up interface.
+ * @returns {Promise<Array>} Array of pause events with pausedAt and resumedAt timestamps.
+ */
+const getPauseEvents = async (t) => {
+  const pauseEvents = await t.get("card", "private", "pauseEvents");
+  return pauseEvents || [];
+};
+
+/**
+ * Saves a pause or resume event to card storage.
+ * @param {Object} t - The Trello Power-Up interface.
+ * @param {string|null} pausedAt - ISO timestamp when paused, or null if resuming.
+ * @param {string|null} resumedAt - ISO timestamp when resumed, or null if pausing.
+ * @returns {Promise<void>}
+ */
+const savePauseEvent = async (t, pausedAt, resumedAt) => {
+  const pauseEvents = await getPauseEvents(t);
+
+  if (pausedAt && !resumedAt) {
+    // Creating a new pause event
+    pauseEvents.push({ pausedAt, resumedAt: null });
+  } else if (resumedAt && pauseEvents.length > 0) {
+    // Resuming - update the last pause event
+    const lastEvent = pauseEvents[pauseEvents.length - 1];
+    if (lastEvent && !lastEvent.resumedAt) {
+      lastEvent.resumedAt = resumedAt;
+    }
+  }
+
+  await t.set("card", "private", "pauseEvents", pauseEvents);
+};
+
+/**
+ * Calculates the total paused time in minutes from pause events.
+ * @param {Array} pauseEvents - Array of pause events.
+ * @returns {number} Total paused minutes.
+ */
+const calculateTotalPausedMinutes = (pauseEvents) => {
+  if (!pauseEvents || pauseEvents.length === 0) {
+    return 0;
+  }
+
+  let totalPausedMinutes = 0;
+  const now = new Date();
+
+  pauseEvents.forEach((event) => {
+    if (event.pausedAt) {
+      const pausedAt = new Date(event.pausedAt);
+      const resumedAt = event.resumedAt ? new Date(event.resumedAt) : now;
+
+      // Calculate the paused duration using business time calculation
+      totalPausedMinutes += calculateBusinessMinutes(pausedAt, resumedAt);
+    }
+  });
+
+  return totalPausedMinutes;
+};
+
+/**
+ * Checks if a card is currently paused.
+ * @param {Array} pauseEvents - Array of pause events.
+ * @returns {boolean} True if currently paused.
+ */
+const isCardPaused = (pauseEvents) => {
+  if (!pauseEvents || pauseEvents.length === 0) {
+    return false;
+  }
+
+  const lastEvent = pauseEvents[pauseEvents.length - 1];
+  return lastEvent && lastEvent.pausedAt && !lastEvent.resumedAt;
+};
+
+/**
+ * Toggles the pause/resume state of a card's timer.
+ * @param {Object} t - The Trello Power-Up interface.
+ * @returns {Promise<boolean>} The new pause state (true if paused, false if resumed).
+ */
+const togglePauseResume = async (t) => {
+  const now = new Date().toISOString();
+  const pauseEvents = await getPauseEvents(t);
+  const isPaused = isCardPaused(pauseEvents);
+
+  if (isPaused) {
+    // Resume the timer
+    await savePauseEvent(t, null, now);
+    return false; // Now active
+  } else {
+    // Pause the timer
+    await savePauseEvent(t, now, null);
+    return true; // Now paused
+  }
+};
+
 // ===== DETECT CONTEXT =====
 // Check if we're in an iframe context or main Power-Up context
 if (window.location.href.includes("index.html")) {
@@ -270,7 +365,7 @@ if (window.location.href.includes("index.html")) {
       appName: APP_NAME,
     });
     try {
-      const renderTimeInList = (history) => {
+      const renderTimeInList = (history, pauseEvents, t) => {
         const timeListElement = document.getElementById("time-list");
 
         // Clear previous content
@@ -287,7 +382,9 @@ if (window.location.href.includes("index.html")) {
         // --- END DEBUGGING ---
 
         if (!history || history.length === 0) {
-          timeListElement.innerHTML = "<p>No movement history yet.</p>";
+          const noHistoryMsg = document.createElement("p");
+          noHistoryMsg.textContent = "No movement history yet.";
+          timeListElement.appendChild(noHistoryMsg);
           return;
         }
 
@@ -317,7 +414,22 @@ if (window.location.href.includes("index.html")) {
         );
 
         // Second pass: render with progress bars
-        let html = "";
+        // Add Pause/Resume button at the top
+        const isPaused = isCardPaused(pauseEvents);
+        const buttonClass = isPaused
+          ? "pause-button paused"
+          : "pause-button active";
+        const buttonText = isPaused ? "⏯️ Resume Timer" : "⏸️ Pause Timer";
+        const buttonBgColor = isPaused ? "#61bd4f" : "#eb5a46";
+
+        let html = `
+          <div class="pause-button-container" style="margin-bottom: 16px; text-align: center;">
+            <button id="pauseResumeBtn" class="${buttonClass}" style="padding: 8px 16px; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 14px; width: 100%; background-color: ${buttonBgColor};">
+              ${buttonText}
+            </button>
+          </div>
+        `;
+
         listData.forEach((item) => {
           const percentage =
             totalMinutes > 0 ? (item.minutes / totalMinutes) * 100 : 0;
@@ -333,7 +445,26 @@ if (window.location.href.includes("index.html")) {
                    </div>`;
         });
 
+        // Add paused time summary if there are pause events
+        if (pauseEvents && pauseEvents.length > 0) {
+          const pausedMinutes = calculateTotalPausedMinutes(pauseEvents);
+          const pausedTime = formatBusinessTime(pausedMinutes);
+          html += `<div class="paused-time-summary">
+                     <strong>⏸️ Total paused time:</strong> ${pausedTime}
+                   </div>`;
+        }
+
         timeListElement.innerHTML = html;
+
+        // Attach event listener to pause/resume button
+        const pauseResumeBtn = document.getElementById("pauseResumeBtn");
+        if (pauseResumeBtn) {
+          pauseResumeBtn.addEventListener("click", async function () {
+            const nowPaused = await togglePauseResume(t);
+            // Reload the entire section to update times
+            location.reload();
+          });
+        }
       };
 
       const token = await getAuthToken(t);
@@ -356,7 +487,10 @@ if (window.location.href.includes("index.html")) {
 
       const history = buildCardHistory(actions, card.id);
 
-      renderTimeInList(history);
+      // Fetch pause events to display paused time
+      const pauseEvents = await getPauseEvents(t);
+
+      renderTimeInList(history, pauseEvents, t);
     } catch (error) {
       console.error("Error during Power-Up execution:", error);
       document.getElementById("time-list").innerHTML =
@@ -398,6 +532,7 @@ if (window.location.href.includes("index.html")) {
         };
       },
       "card-badges": async function (t, options) {
+        console.log("✅ card-badges callback triggered");
         try {
           const token = await getAuthToken(t);
 
@@ -422,15 +557,57 @@ if (window.location.href.includes("index.html")) {
             startDate = getCardCreationDate(card.id);
           }
 
-          const duration = calculateBusinessTime(startDate, new Date());
+          // Get pause events and calculate paused time
+          const pauseEvents = await getPauseEvents(t);
+          const isPaused = isCardPaused(pauseEvents);
+          const pausedMinutes = calculateTotalPausedMinutes(pauseEvents);
+
+          // Calculate total elapsed time
+          const totalMinutes = calculateBusinessMinutes(startDate, new Date());
+
+          // Subtract paused time from total time
+          const activeMinutes = Math.max(0, totalMinutes - pausedMinutes);
+          const duration = formatBusinessTime(activeMinutes);
+
           return [
             {
-              text: `⏱️ ${duration}`,
-              color: "blue",
+              text: isPaused ? `⏱️ ${duration} ⏸️` : `⏱️ ${duration}`,
+              color: isPaused ? "red" : "blue",
             },
           ];
         } catch (error) {
           console.error("Error in card-badges:", error);
+          return [];
+        }
+      },
+      "card-buttons": async function (t, options) {
+        console.log("✅ card-buttons callback triggered");
+        try {
+          const pauseEvents = await getPauseEvents(t);
+          const isPaused = isCardPaused(pauseEvents);
+          console.log("Pause status:", isPaused, "Events:", pauseEvents);
+
+          const button = {
+            icon: "https://cdn-icons-png.flaticon.com/512/2088/2088617.png",
+            text: isPaused ? "⏯️ Resume Timer" : "⏸️ Pause Timer",
+            callback: async function (t) {
+              console.log("Button clicked!");
+              const nowPaused = await togglePauseResume(t);
+
+              await t.alert({
+                message: nowPaused ? "Timer paused! ⏸️" : "Timer resumed! ⏱️",
+                duration: 3,
+              });
+
+              // Refresh the card to update badges
+              return t.closePopup();
+            },
+          };
+
+          console.log("Returning button:", button);
+          return [button];
+        } catch (error) {
+          console.error("Error in card-buttons:", error);
           return [];
         }
       },
@@ -469,25 +646,6 @@ if (window.location.href.includes("index.html")) {
       //           });
       //       });
       //     });
-      // },
-      // "board-buttons": function (t, options) {
-      //   console.log("🔘 board-buttons callback triggered");
-      //   return [
-      //     {
-      //       icon: {
-      //         dark: "https://cdn-icons-png.flaticon.com/512/2088/2088617.png",
-      //         light: "https://cdn-icons-png.flaticon.com/512/2088/2088617.png",
-      //       },
-      //       text: "Time Tracking",
-      //       callback: function (t) {
-      //         return t.popup({
-      //           title: "Time in List",
-      //           url: "./board-stats.html",
-      //           height: 300,
-      //         });
-      //       },
-      //     },
-      //   ];
       // },
     },
     {
