@@ -29,8 +29,12 @@
   <p>Please authorize this Power-Up to read card history.</p>
   <button id="auth-btn">Authorize</button>
 
+  <script src="./constants.js"></script>
   <script>
-    var t = TrelloPowerUp.iframe();
+    var t = TrelloPowerUp.iframe({
+      appKey: APP_KEY,
+      appName: APP_NAME,
+    });
     var authBtn = document.getElementById('auth-btn');
 
     authBtn.addEventListener('click', function() {

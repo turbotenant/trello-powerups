@@ -25,10 +25,15 @@
   <h3>Time Tracking Stats</h3>
   <p>Track how long cards spend in each list on this board.</p>
   <p>Open any card to see its detailed time breakdown.</p>
+  <script src="https://p.trellocdn.com/power-up.min.js"></script>
+  <script src="./constants.js"></script>
   <script>
-    var t = TrelloPowerUp.iframe();
-    t.render(function() {
-      t.sizeTo('body');
+    var t = TrelloPowerUp.iframe({
+      appKey: APP_KEY,
+      appName: APP_NAME,
+    });
+    t.render(function () {
+      t.sizeTo("body");
     });
   </script>
 </body>

@@ -1,4 +1,4 @@
-/* global TrelloPowerUp, dayjs */
+/* global TrelloPowerUp, dayjs, APP_KEY, APP_NAME */
 
 // === DEBUG LOGGING ===
 console.log("🚀 Power-Up script loaded!");
@@ -143,87 +143,101 @@ const calculateBusinessTime = (startDate, endDate) => {
 // Check if we're in an iframe context or main Power-Up context
 if (window.location.href.includes("index.html")) {
   // IFRAME CODE - runs when index.html is loaded
-  const t = TrelloPowerUp.iframe();
-
-  const renderTimeInList = (history) => {
-    const timeListElement = document.getElementById("time-list");
-
-    // Clear previous content
-    timeListElement.innerHTML = "";
-
-    // --- DEBUGGING LINE ---
-    // Let's display the number of entries in our history array.
-    const debugInfo = document.createElement("p");
-    debugInfo.style.color = "#888";
-    debugInfo.textContent = `(Debug: ${
-      history ? history.length : 0
-    } history entries found)`;
-    timeListElement.appendChild(debugInfo);
-    // --- END DEBUGGING ---
-
-    if (!history || history.length === 0) {
-      timeListElement.innerHTML = "<p>No movement history yet.</p>";
-      return;
-    }
-
-    const now = new Date();
-    let html = "";
-
-    history.forEach((entry, index) => {
-      const startDate = dayjs(entry.enteredAt).toDate();
-      const endDate =
-        index < history.length - 1
-          ? dayjs(history[index + 1].enteredAt).toDate()
-          : now;
-
-      const duration = calculateBusinessTime(startDate, endDate);
-
-      html += `<div class="list-item">
-                 <span class="list-name">${entry.listName}</span>
-                 <span class="list-time">${duration}</span>
-               </div>`;
-    });
-
-    timeListElement.innerHTML = html;
-  };
-
-  // We need to handle the rendering when the iframe (index.html) loads
   window.addEventListener("load", () => {
     const t = TrelloPowerUp.iframe({
-      appKey: "5a205cbf8eaf72b61ff36eeae6e7b947",
-      appName: "Time in List",
+      appKey: APP_KEY,
+      appName: APP_NAME,
     });
 
-    t.card("id")
-      .then(function (card) {
-        return t
-          .getRestApi()
-          .get(
-            "/cards/" + card.id + "/actions?filter=updateCard:idList,createCard"
-          )
-          .then(function (actions) {
-            const history = actions
-              .filter((action) => {
-                return (
-                  action.type === "createCard" ||
-                  (action.type === "updateCard" && action.data.listAfter)
-                );
-              })
-              .map((action) => {
-                const list =
-                  action.type === "createCard"
-                    ? action.data.list
-                    : action.data.listAfter;
-                return {
-                  listName: list.name,
-                  enteredAt: action.date,
-                };
-              })
-              .reverse(); // Trello returns actions newest-first
+    const renderTimeInList = (history) => {
+      const timeListElement = document.getElementById("time-list");
 
-            renderTimeInList(history);
-            t.sizeTo("#content");
-          });
+      // Clear previous content
+      timeListElement.innerHTML = "";
+
+      // --- DEBUGGING LINE ---
+      // Let's display the number of entries in our history array.
+      const debugInfo = document.createElement("p");
+      debugInfo.style.color = "#888";
+      debugInfo.textContent = `(Debug: ${
+        history ? history.length : 0
+      } history entries found)`;
+      timeListElement.appendChild(debugInfo);
+      // --- END DEBUGGING ---
+
+      if (!history || history.length === 0) {
+        timeListElement.innerHTML = "<p>No movement history yet.</p>";
+        return;
+      }
+
+      const now = new Date();
+      let html = "";
+
+      history.forEach((entry, index) => {
+        const startDate = dayjs(entry.enteredAt).toDate();
+        const endDate =
+          index < history.length - 1
+            ? dayjs(history[index + 1].enteredAt).toDate()
+            : now;
+
+        const duration = calculateBusinessTime(startDate, endDate);
+
+        html += `<div class="list-item">
+                   <span class="list-name">${entry.listName}</span>
+                   <span class="list-time">${duration}</span>
+                 </div>`;
+      });
+
+      timeListElement.innerHTML = html;
+    };
+
+    t.getRestApi()
+      .isAuthorized()
+      .then(function (isAuthorized) {
+        if (!isAuthorized) {
+          document.getElementById("time-list").innerHTML =
+            '<p>Please authorize this Power-Up to see card history.</p><button id="auth-btn-iframe">Authorize</button>';
+          document
+            .getElementById("auth-btn-iframe")
+            .addEventListener("click", function () {
+              t.getRestApi().authorize({ scope: "read" });
+            });
+          t.sizeTo("#content");
+          return;
+        }
+
+        t.card("id").then(function (card) {
+          return t
+            .getRestApi()
+            .get(
+              "/cards/" +
+                card.id +
+                "/actions?filter=updateCard:idList,createCard"
+            )
+            .then(function (actions) {
+              const history = actions
+                .filter((action) => {
+                  return (
+                    action.type === "createCard" ||
+                    (action.type === "updateCard" && action.data.listAfter)
+                  );
+                })
+                .map((action) => {
+                  const list =
+                    action.type === "createCard"
+                      ? action.data.list
+                      : action.data.listAfter;
+                  return {
+                    listName: list.name,
+                    enteredAt: action.date,
+                  };
+                })
+                .reverse(); // Trello returns actions newest-first
+
+              renderTimeInList(history);
+              t.sizeTo("#content");
+            });
+        });
       })
       .catch(function (error) {
         console.error("Error fetching card history:", error);
@@ -237,6 +251,7 @@ if (window.location.href.includes("index.html")) {
 
   TrelloPowerUp.initialize(
     {
+      /*
       "on-enable": function (t, options) {
         console.log("Power-Up enabled, checking authorization.");
         return t
@@ -254,6 +269,7 @@ if (window.location.href.includes("index.html")) {
             }
           });
       },
+      */
       "card-back-section": function (t, options) {
         console.log("✅ card-back-section callback triggered");
         return {
@@ -268,71 +284,76 @@ if (window.location.href.includes("index.html")) {
           },
         };
       },
+      /*
       "card-badges": function (t, options) {
         return t
-          .card("id")
-          .then(function (card) {
-            return t
-              .getRestApi()
-              .get(
-                "/cards/" +
-                  card.id +
-                  "/actions?filter=updateCard:idList,createCard&limit=1"
-              )
-              .then(function (actions) {
-                if (actions && actions.length > 0) {
-                  const lastMoveDate = dayjs(actions[0].date).toDate();
-                  const duration = calculateBusinessTime(
-                    lastMoveDate,
-                    new Date()
-                  );
-                  return [
-                    {
-                      text: `⏱️ ${duration}`,
-                      color: "blue",
-                    },
-                  ];
-                }
-                return [];
-              });
-          })
-          .catch(function (error) {
-            console.error("Error fetching card badge info:", error);
-            return [];
+          .getRestApi()
+          .isAuthorized()
+          .then(function (isAuthorized) {
+            if (!isAuthorized) {
+              return []; // Don't show badge if not authorized
+            }
+            return t.card("id").then(function (card) {
+              return t
+                .getRestApi()
+                .get(
+                  "/cards/" +
+                    card.id +
+                    "/actions?filter=updateCard:idList,createCard&limit=1"
+                )
+                .then(function (actions) {
+                  if (actions && actions.length > 0) {
+                    const lastMoveDate = dayjs(actions[0].date).toDate();
+                    const duration = calculateBusinessTime(
+                      lastMoveDate,
+                      new Date()
+                    );
+                    return [
+                      {
+                        text: `⏱️ ${duration}`,
+                        color: "blue",
+                      },
+                    ];
+                  }
+                  return [];
+                });
+            });
           });
       },
       "card-detail-badges": function (t, options) {
         return t
-          .card("id")
-          .then(function (card) {
-            return t
-              .getRestApi()
-              .get(
-                "/cards/" +
-                  card.id +
-                  "/actions?filter=updateCard:idList,createCard&limit=1"
-              )
-              .then(function (actions) {
-                if (actions && actions.length > 0) {
-                  const lastMoveDate = dayjs(actions[0].date).toDate();
-                  const duration = calculateBusinessTime(
-                    lastMoveDate,
-                    new Date()
-                  );
-                  return [
-                    {
-                      title: "Time in Current List",
-                      text: duration,
-                      color: "blue",
-                    },
-                  ];
-                }
-                return [];
-              });
-          })
-          .catch(function (error) {
-            console.error("Error fetching card detail badge info:", error);
-            return [];
+          .getRestApi()
+          .isAuthorized()
+          .then(function (isAuthorized) {
+            if (!isAuthorized) {
+              return []; // Don't show badge if not authorized
+            }
+            return t.card("id").then(function (card) {
+              return t
+                .getRestApi()
+                .get(
+                  "/cards/" +
+                    card.id +
+                    "/actions?filter=updateCard:idList,createCard&limit=1"
+                )
+                .then(function (actions) {
+                  if (actions && actions.length > 0) {
+                    const lastMoveDate = dayjs(actions[0].date).toDate();
+                    const duration = calculateBusinessTime(
+                      lastMoveDate,
+                      new Date()
+                    );
+                    return [
+                      {
+                        title: "Time in Current List",
+                        text: duration,
+                        color: "blue",
+                      },
+                    ];
+                  }
+                  return [];
+                });
+            });
           });
       },
       "board-buttons": function (t, options) {
@@ -354,10 +375,11 @@ if (window.location.href.includes("index.html")) {
           },
         ];
       },
+      */
     },
     {
-      appKey: "5a205cbf8eaf72b61ff36eeae6e7b947",
-      appName: "Time in List",
+      appKey: APP_KEY,
+      appName: APP_NAME,
     }
   );
 
