@@ -387,6 +387,54 @@ const pauseResumeCallback = async (t) => {
   return t.closePopup();
 };
 
+/**
+ * Calculates the time spent in the current list (excluding paused time).
+ * @param {Object} t - The Trello Power-Up interface.
+ * @returns {Promise<Object>} Object containing { duration, isPaused, pauseEvents }
+ */
+const calculateCurrentListTime = async (t) => {
+  const token = await getAuthToken(t);
+
+  if (!token) {
+    return null;
+  }
+
+  const card = await t.card("id");
+
+  const response = await fetch(
+    `https://api.trello.com/1/cards/${card.id}/actions?filter=updateCard:idList,createCard&key=${APP_KEY}&token=${token}&limit=1`
+  );
+  const actions = await response.json();
+
+  let startDate;
+
+  if (actions && actions.length > 0) {
+    // Card has movement history - use the last action date
+    startDate = dayjs(actions[0].date).toDate();
+  } else {
+    // No actions found - extract creation timestamp from card ID
+    startDate = getCardCreationDate(card.id);
+  }
+
+  // Get pause events and calculate paused time
+  const pauseEvents = await getPauseEvents(t);
+  const isPaused = isCardPaused(pauseEvents);
+  const pausedMinutes = calculateTotalPausedMinutes(pauseEvents);
+
+  // Calculate total elapsed time
+  const totalMinutes = calculateBusinessMinutes(startDate, new Date());
+
+  // Subtract paused time from total time
+  const activeMinutes = Math.max(0, totalMinutes - pausedMinutes);
+  const duration = formatBusinessTime(activeMinutes);
+
+  return {
+    duration,
+    isPaused,
+    pauseEvents,
+  };
+};
+
 // ===== DETECT CONTEXT =====
 // Check if we're in an iframe context or main Power-Up context
 if (window.location.href.includes("index.html")) {
@@ -567,42 +615,14 @@ if (window.location.href.includes("index.html")) {
         };
       },
       "card-badges": async function (t, options) {
-        console.log("✅ card-badges callback triggered");
         try {
-          const token = await getAuthToken(t);
+          const timeInfo = await calculateCurrentListTime(t);
 
-          if (!token) {
-            return []; // Don't show badge if not authorized
+          if (!timeInfo) {
+            return []; // Not authorized or error
           }
 
-          const card = await t.card("id");
-
-          const response = await fetch(
-            `https://api.trello.com/1/cards/${card.id}/actions?filter=updateCard:idList,createCard&key=${APP_KEY}&token=${token}&limit=1`
-          );
-          const actions = await response.json();
-
-          let startDate;
-
-          if (actions && actions.length > 0) {
-            // Card has movement history - use the last action date
-            startDate = dayjs(actions[0].date).toDate();
-          } else {
-            // No actions found - extract creation timestamp from card ID
-            startDate = getCardCreationDate(card.id);
-          }
-
-          // Get pause events and calculate paused time
-          const pauseEvents = await getPauseEvents(t);
-          const isPaused = isCardPaused(pauseEvents);
-          const pausedMinutes = calculateTotalPausedMinutes(pauseEvents);
-
-          // Calculate total elapsed time
-          const totalMinutes = calculateBusinessMinutes(startDate, new Date());
-
-          // Subtract paused time from total time
-          const activeMinutes = Math.max(0, totalMinutes - pausedMinutes);
-          const duration = formatBusinessTime(activeMinutes);
+          const { duration, isPaused } = timeInfo;
 
           return [
             {
@@ -642,10 +662,21 @@ if (window.location.href.includes("index.html")) {
       "card-detail-badges": async function (t, options) {
         console.log("✅ card-detail-badges callback triggered");
         try {
-          const pauseEvents = await getPauseEvents(t);
-          const isPaused = isCardPaused(pauseEvents);
+          const timeInfo = await calculateCurrentListTime(t);
 
+          if (!timeInfo) {
+            return []; // Not authorized or error
+          }
+
+          const { duration, isPaused } = timeInfo;
+
+          // Return TWO badges: time + pause/resume button
           return [
+            {
+              title: "Time in Current List",
+              text: duration,
+              color: "blue",
+            },
             {
               title: isPaused ? "Timer Paused" : "Timer Active",
               text: isPaused
