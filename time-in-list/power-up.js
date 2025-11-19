@@ -304,16 +304,6 @@ if (window.location.href.includes("index.html")) {
         // Clear previous content
         timeListElement.innerHTML = "";
 
-        // --- DEBUGGING LINE ---
-        // Let's display the number of entries in our history array.
-        const debugInfo = document.createElement("p");
-        debugInfo.style.color = "#888";
-        debugInfo.textContent = `(Debug: ${
-          history ? history.length : 0
-        } history entries found)`;
-        timeListElement.appendChild(debugInfo);
-        // --- END DEBUGGING ---
-
         if (!history || history.length === 0) {
           const noHistoryMsg = document.createElement("p");
           noHistoryMsg.textContent = "No movement history yet.";
