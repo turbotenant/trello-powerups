@@ -1,6 +1,7 @@
 /* global TrelloPowerUp */
 
 function showAuthorizePopup(t) {
+  console.log("🔍 Showing authorize popup");
   return t.popup({
     title: "Authorize to continue",
     url: "./authorize.html",

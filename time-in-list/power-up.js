@@ -1,10 +1,10 @@
 /* global TrelloPowerUp, dayjs, APP_KEY, APP_NAME */
 
 // === DEBUG LOGGING ===
-// console.log("🚀 Power-Up Time in List script loaded!");
-// console.log("📍 Current URL Time in List:", window.location.href);
-// console.log("🔍 TrelloPowerUp available Time in List:", typeof TrelloPowerUp);
-// console.log("📅 dayjs available Time in List:", typeof dayjs);
+console.log("🚀 Power-Up Time in List script loaded!");
+console.log("📍 Current URL Time in List:", window.location.href);
+console.log("🔍 TrelloPowerUp available Time in List:", typeof TrelloPowerUp);
+console.log("📅 dayjs available Time in List:", typeof dayjs);
 // === END DEBUG ===
 
 // ===== SHARED HELPER FUNCTIONS =====
@@ -247,7 +247,7 @@ const pauseResumeCallback = async (t) => {
  */
 const calculateCurrentListTime = async (t) => {
   const token = await getAuthToken(t);
-
+  console.log("🔍 Token:", token);
   if (!token) {
     return null;
   }
@@ -405,6 +405,7 @@ if (window.location.href.includes("index.html")) {
 
       const token = await getAuthToken(t);
       if (!token) {
+        console.log("🔍 No token, showing authorize popup");
         return [
           {
             text: "Authorize",
@@ -437,14 +438,14 @@ if (window.location.href.includes("index.html")) {
   });
 } else {
   // MAIN POWER-UP CODE - runs when Trello loads the Power-Up
-  // console.log("🎯 Initializing Power-Up Time in List in main context");
+  console.log("🎯 Initializing Power-Up Time in List in main context");
 
   TrelloPowerUp.initialize(
     {
       "on-enable": async function (t, options) {
-        // console.log(
-        //   "✅ Power-Up Time in List enabled, checking authorization."
-        // );
+        console.log(
+          "✅ Power-Up Time in List enabled, checking authorization."
+        );
         const token = await getAuthToken(t);
 
         if (!token) {
@@ -456,7 +457,7 @@ if (window.location.href.includes("index.html")) {
         }
       },
       "card-back-section": function (t, options) {
-        // console.log("✅ card-back-section Time in List callback triggered");
+        console.log("✅ card-back-section Time in List callback triggered");
         return {
           title: "Time in List Facu",
           icon: "https://cdn-icons-png.flaticon.com/512/2088/2088617.png",
@@ -493,7 +494,7 @@ if (window.location.href.includes("index.html")) {
         }
       },
       "card-buttons": async function (t, options) {
-        // console.log("✅ card-buttons Time in List callback triggered");
+        console.log("✅ card-buttons Time in List callback triggered");
         try {
           const pauseEvents = await getPauseEvents(t);
           const isPaused = isCardPaused(pauseEvents);
@@ -513,7 +514,7 @@ if (window.location.href.includes("index.html")) {
         }
       },
       "card-detail-badges": async function (t, options) {
-        // console.log("✅ card-detail-badges Time in List callback triggered");
+        console.log("✅ card-detail-badges Time in List callback triggered");
         try {
           const timeInfo = await calculateCurrentListTime(t);
 
