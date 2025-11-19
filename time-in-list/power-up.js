@@ -9,23 +9,6 @@ console.log("📅 dayjs available:", typeof dayjs);
 
 // ===== SHARED HELPER FUNCTIONS =====
 
-function showAuthorizePopup(t) {
-  return t.popup({
-    title: "Authorize to continue",
-    url: "./authorize.html",
-  });
-}
-
-/**
- * Gets the authorization token from the Trello API.
- * @param {Object} t - The Trello Power-Up interface.
- * @returns {Promise<string|null>} The token or null if not authorized.
- */
-const getAuthToken = async (t) => {
-  const api = await t.getRestApi();
-  return await api.getToken();
-};
-
 /**
  * Extracts the creation timestamp from a Trello card ID.
  * Trello IDs are MongoDB ObjectIDs where the first 8 hex characters encode the Unix timestamp.
