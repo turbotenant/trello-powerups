@@ -1,10 +1,10 @@
 /* global TrelloPowerUp, dayjs, APP_KEY, APP_NAME */
 
 // === DEBUG LOGGING ===
-console.log("🚀 Power-Up Start Case script loaded!");
-console.log("📍 Current URL Start Case:", window.location.href);
-console.log("🔍 TrelloPowerUp available Start Case:", typeof TrelloPowerUp);
-console.log("📅 dayjs available Start Case:", typeof dayjs);
+// console.log("🚀 Power-Up Start Case script loaded!");
+// console.log("📍 Current URL Start Case:", window.location.href);
+// console.log("🔍 TrelloPowerUp available Start Case:", typeof TrelloPowerUp);
+// console.log("📅 dayjs available Start Case:", typeof dayjs);
 // === END DEBUG ===
 
 // ===== START CASE SCRIPT =====
@@ -57,7 +57,7 @@ const startCaseCallback = async (t) => {
         method: "PUT",
       }
     );
-    console.log(updateResponse);
+
     if (!updateResponse.ok) {
       throw new Error(
         `Failed to update card. Status: ${updateResponse.status}`
@@ -81,7 +81,6 @@ const startCaseCallback = async (t) => {
     );
 
     if (!daysToReleaseField) {
-      console.warn("Custom field 'Days to Release' not found on this board.");
       return t.alert({
         message:
           "Card moved and assigned. Note: 'Days to Release' field not found.",
@@ -111,7 +110,6 @@ const startCaseCallback = async (t) => {
       !daysToReleaseValue.value ||
       !daysToReleaseValue.value.number
     ) {
-      console.warn("'Days to Release' value not set on this card.");
       return t.alert({
         message:
           "Card moved and assigned. Note: 'Days to Release' value not set.",
@@ -124,13 +122,8 @@ const startCaseCallback = async (t) => {
 
     // 6. Calculate the due date using business days
     const startDate = new Date();
-    console.log("Start date:", startDate);
-    console.log("Days to add:", daysToAdd);
 
     const { endDate, totalDaysAdded } = addBusinessDays(startDate, daysToAdd);
-
-    console.log("End date:", endDate);
-    console.log("Total calendar days added:", totalDaysAdded);
 
     // Format the date as ISO 8601 for Trello API
     const dueDate = endDate.toISOString();
@@ -174,7 +167,7 @@ const startCaseCallback = async (t) => {
 TrelloPowerUp.initialize(
   {
     "on-enable": async function (t, options) {
-      console.log("✅ Power-Up Start Case enabled, checking authorization.");
+      // console.log("✅ Power-Up Start Case enabled, checking authorization.");
       const token = await getAuthToken(t);
 
       if (!token) {
@@ -186,7 +179,7 @@ TrelloPowerUp.initialize(
       }
     },
     "card-buttons": async function (t, options) {
-      console.log("✅ card-buttons Start Case callback triggered");
+      // console.log("✅ card-buttons Start Case callback triggered");
       return [
         {
           icon: "https://cdn-icons-png.flaticon.com/512/2285/2285537.png",
@@ -201,3 +194,5 @@ TrelloPowerUp.initialize(
     appName: APP_NAME,
   }
 );
+
+console.log("✨ Power-Up Start Case initialization complete");
