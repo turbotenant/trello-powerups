@@ -66,11 +66,6 @@ const getHolidaysForYear = (year) => {
     }
 
     holidays.push(holiday.format("YYYY-MM-DD"));
-
-    // Special case: Day after Thanksgiving
-    if (rule.name === "Thanksgiving Day") {
-      holidays.push(holiday.add(1, "day").format("YYYY-MM-DD"));
-    }
   });
 
   return holidays;
