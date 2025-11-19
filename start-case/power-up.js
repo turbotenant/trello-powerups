@@ -1,10 +1,10 @@
 /* global TrelloPowerUp, dayjs, APP_KEY, APP_NAME */
 
 // === DEBUG LOGGING ===
-console.log("🚀 Power-Up script loaded!");
-console.log("📍 Current URL:", window.location.href);
-console.log("🔍 TrelloPowerUp available:", typeof TrelloPowerUp);
-console.log("📅 dayjs available:", typeof dayjs);
+console.log("🚀 Power-Up Start Case script loaded!");
+console.log("📍 Current URL Start Case:", window.location.href);
+console.log("🔍 TrelloPowerUp available Start Case:", typeof TrelloPowerUp);
+console.log("📅 dayjs available Start Case:", typeof dayjs);
 // === END DEBUG ===
 
 // ===== START CASE SCRIPT =====
@@ -15,12 +15,9 @@ console.log("📅 dayjs available:", typeof dayjs);
  */
 const startCaseCallback = async (t) => {
   try {
-    const token = await t.getToken();
+    const token = await getAuthToken(t);
     if (!token) {
-      return t.popup({
-        title: "Authorize to continue",
-        url: "./authorize.html",
-      });
+      return showAuthorizePopup(t);
     }
 
     // Get the board and card context
@@ -60,7 +57,7 @@ const startCaseCallback = async (t) => {
         method: "PUT",
       }
     );
-
+    console.log(updateResponse);
     if (!updateResponse.ok) {
       throw new Error(
         `Failed to update card. Status: ${updateResponse.status}`
@@ -90,8 +87,8 @@ const startCaseCallback = async (t) => {
 TrelloPowerUp.initialize(
   {
     "on-enable": async function (t, options) {
-      console.log("Power-Up enabled, checking authorization.");
-      const token = await t.getToken();
+      console.log("✅ Power-Up Start Case enabled, checking authorization.");
+      const token = await getAuthToken(t);
 
       if (!token) {
         return t.popup({
@@ -102,6 +99,7 @@ TrelloPowerUp.initialize(
       }
     },
     "card-buttons": async function (t, options) {
+      console.log("✅ card-buttons Start Case callback triggered");
       return [
         {
           icon: "https://cdn.icon-icons.com/icons2/1382/PNG/512/development_94943.png",
