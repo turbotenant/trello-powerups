@@ -1,0 +1,1114 @@
+---
+description: Complete company coding standards for consistent, maintainable code across frontend and backend - comprehensive guide
+alwaysApply: true
+---
+
+# Company Coding Standards - 2025
+
+Coding standards are like a style guide for your code. They help you and your team write clean, consistent, and maintainable code. Follow these standards for all code generation, suggestions, and modifications.
+
+## Variable Naming Conventions
+
+Having variable names that are meaningful will ensure each team member can easily understand code that they didn't write themselves. This also helps the engineer make sense of the particular function or context for which that variable is being used.
+
+### 1. Use intention-revealing names
+
+When naming a variable, don't be shy to have long variable names. The name should be self-explanatory.
+
+```javascript
+// Bad ❌
+const foo = properties.length;
+const res = await createStripeCustomer();
+
+// Good ✅
+const propertiesCount = properties.length;
+const stripeResponse = await createStripeCustomer();
+```
+
+### 2. Make your variable and function names easy to pronounce
+
+Long variable names are good, but make them easy to pronounce. Do not over-think of these two first standards, they will come naturally to you.
+
+```javascript
+// Bad ❌
+const ttFraudStatusForOwnerFromListing;
+
+// Good ✅
+const ownerFraudStatus;
+```
+
+### 3. Use camelCase when naming variables, functions, instances and object keys
+
+The only exception would be variables and object keys that can be mapped directly to database fields. In that case, it's allowed to use the snake case (snake_case) for the name.
+
+```javascript
+// Bad ❌
+const my_variable = '';
+function my_function() {}
+const my_object = {
+  first_key: 'Some value',
+};
+
+// Good ✅
+const myVariable = '';
+function myFunction() {}
+const myObject = {
+  firstKey: 'Some value',
+};
+
+// Good ✅ - Exception examples
+const ownerData = {
+  first_name,
+  last_name,
+};
+models.owners.create(ownerData);
+
+// Good ✅ - Using snake case in GraphQL for mutation input fields and types,
+// if they match database column names
+export const myType = new GraphQLObjectType({
+  name: 'myType',
+  description: 'myType',
+  fields: () => ({
+    status: { type: GraphQLString },
+    enabled_at: { type: GraphQLDateTime },
+    canceled_at: { type: GraphQLDateTime },
+    created_at: { type: GraphQLDateTime },
+    updated_at: { type: GraphQLDateTime },
+  }),
+});
+```
+
+### 4. Use UpperCamelCase or PascalCase when naming constructors and classes
+
+```javascript
+// Bad ❌
+class rentPayments { ... }
+const instance = new rentPayments();
+
+// Good ✅
+class RentPayments { ... }
+const rentPayments = new RentPayments();
+```
+
+### 5. Prefix boolean variable names with is/has
+
+```javascript
+// Bad ❌
+const verified = true;
+const turboPayFeatureEnabled = false;
+
+// Good ✅
+const isVerified = true;
+const hasTurboPayFeatureEnabled = false;
+```
+
+### 6. Constants should be named in upper case
+
+When a variable is considered as constant value, and it will never change, use upper case for naming.
+
+```javascript
+// Bad ❌
+const apiKey = '...';
+const ownerStatus = {};
+
+// Good ✅
+const API_KEY = '...';
+const OWNER_STATUS = {};
+```
+
+### 7. Export constants directly from a file, instead of using module.exports approach
+
+```javascript
+// Bad ❌
+const UTILITIES = {
+  ELECTRICITY: 'ELECTRICITY',
+  GAS: 'GAS',
+  WATER: 'WATER',
+};
+module.exports = UTILITIES;
+
+// and use it
+import { WATER } from './utilities';
+
+// Good ✅
+export const ELECTRICITY = 'ELECTRICITY';
+export const GAS = 'GAS';
+export const WATER = 'WATER';
+
+// and use it in the same way
+import { WATER } from './utilities';
+```
+
+It is also valid to export an object with constants:
+
+```javascript
+// Good ✅
+const UTILITIES = {
+  ELECTRICITY: 'ELECTRICITY',
+  GAS: 'GAS',
+  WATER: 'WATER',
+};
+
+export default UTILITIES;
+
+// and use it like
+import UTILITIES from './constants';
+
+// ...
+if (bill.type === UTILITIES.GAS) {
+  // ...
+}
+```
+
+### 8. Pass data-qa as prop
+
+The data-qa attribute is used in E2E tests (Cypress tests) and it helps with referencing DOM elements.
+
+If the component/element is the final recipient of the data-qa prop (meaning, the prop is applied to that element and is not going to be passed further along), we pass it as data-qa.
+
+```jsx
+// Bad ❌
+<div dataQA="some-string">Content</div>
+<div dataQa="some-string">Content</div>
+
+// Good ✅
+<div data-qa="some-string">Content</div>
+```
+
+If the prop is going to be passed further along (meaning it's not going to be applied to the element it's being passed to), we pass it as dataQa (to follow the React way of naming props).
+
+```jsx
+// Bad ❌
+<SomeComponent dataQA="some-string" />
+<SomeComponent data-qa="some-string" />
+
+// Good ✅
+<SomeComponent dataQa="some-string" />
+```
+
+Some components used within the react-final-form have a special way of passing props to underlying elements. For example, the data-qa needs to be passed to the underlying inside our component like this:
+
+```jsx
+// Good ✅
+<Field
+  component={Input}
+  name="input_name"
+  inputProps={{
+    'data-qa': 'some-string',
+  }}
+/>
+```
+
+## Project Structure Practices in fe/
+
+### 1. Shared components
+
+Each shared component should have its own folder within the fe/src/components/ folder. It should export the React component from within the index file.
+
+```
+// Proper folder structure ✅
+
+// the folder where your component is located
+fe/src/components/YourComponent/
+// the main component
+fe/src/components/YourComponent/YourComponent.js
+// CSS that is used to style the component
+fe/src/components/YourComponent/YourComponent.module.scss
+// storybook for your component
+fe/src/components/YourComponent/YourComponent.stories.js
+// export of the main component
+fe/src/components/YourComponent/index.js
+```
+
+Sometimes it is easier to split your component into smaller components, that are not reusable across the application. You can place them in the same folder as the main component, within the components folder:
+
+```
+// Proper folder structure ✅
+
+fe/src/components/YourComponent/components/Box/Box.js
+fe/src/components/YourComponent/components/Box/Box.module.scss
+fe/src/components/YourComponent/components/Box/index.js
+```
+
+### 2. Final-Form validators
+
+Custom form validators are located in fe/src/validators and each validator should have its own file. A unit test for the validator should live in the same folder, with the same name (with the .spec.js suffix).
+
+### 3. Pages
+
+Pages have a similar structure as the components:
+
+```
+// Proper folder structure ✅
+
+// folder where your page is located
+fe/src/pages/properties/YourPage
+fe/src/pages/properties/YourPage/YourPage.js
+fe/src/pages/properties/YourPage/YourPage.module.scss
+```
+
+If you have components that are related to the page, but not shared across other pages, you can add them to the src/components or in the page its own components folder:
+
+```
+// Proper folder structure ✅
+
+// folder where your page is located
+fe/src/pages/properties/YourPage/components/Box/Box.js
+fe/src/pages/properties/YourPage/components/Box/Box.module.scss
+```
+
+## Project Structure Practices in api/
+
+### 1. File names should be in camel case
+
+```javascript
+// Bad ❌
+api / src / services / rent - payments / send_rent_payment.js;
+
+// Good ✅
+api / src / services / rent - payments / sendRentPayment.js;
+```
+
+### 2. Directory names should be kebab-case
+
+```javascript
+// Bad ❌
+api/src/services/rentPayments/
+
+// Good ✅
+api/src/services/rent-payments/
+```
+
+### 3. One method per file
+
+- The test file lives next to the method file with no additional folder
+- The test file name MUST be the same as the method name
+
+```javascript
+// Bad ❌
+api / src / services / rent - payments / sendRentPayment.js;
+api / src / services / rent - payments / tests / sendRentPayment.spec.js;
+
+// Good ✅
+api / src / services / rent - payments / sendRentPayment.js;
+api / src / services / rent - payments / sendRentPayment.spec.js;
+```
+
+The method name and file name MUST be the same:
+
+```javascript
+// Bad ❌
+// sendRentPayment.js
+const sendPayment = () => { ... };
+export default sendPayment;
+
+// Good ✅
+// sendRentPayment.js
+const sendRentPayment = () => { ... };
+export default sendRentPayment;
+```
+
+## The api/ Project Rules
+
+Authentication is handled within the Express middleware.
+
+### 1. GraphQL Layer
+
+Things to consider when working with the GraphQL layer:
+
+**Authorization** - ensure that a query or a mutation is executed only for specific role;
+
+**Do not access DB models directly** - this GraphQL layer should not communicate with the database directly. Use services for that;
+
+**Request Cache invalidation** should happen at the end of mutation. As a method from a service may be used in different locations, there is no guarantee that cache will not be invalidated multiple times during the single GraphQL request. Therefore, invalidate cache on the GraphQL level;
+
+**Mark fields as deprecated** prior removing them. Ensure that the field is not in use, and that can be safely removed. Ensure that changing a type is safe, that any client application is not using it.
+
+#### Removing GraphQL fields
+
+When you need to remove a field from a GraphQL type, you should ALWAYS remove all the usages first, both from the Frontend and the Backend.
+
+Once that's merged and released, you can create a follow up case to remove the field from the type schema, this way we prevent errors post release where some users will have an old FE version that still are sending that field over.
+
+It's always safer to wait just some days before removing the type completely.
+
+**RULE OF THUMB:**
+
+- Never remove a field completely in the same release.
+- First remove all the usages both in the Frontend and the Backend and release it.
+- After some days, proceed removing the field from the type schema.
+
+**RULE OF THUMB:**
+
+- Never remove a field completely in the same release.
+- First remove all the usages both in the Frontend and the Backend and release it.
+- After some days, proceed removing the field from the type schema.
+
+### 2. Services Layer
+
+The Services layer should handle business logic, database interactions and data manipulation. The "service" is nothing more than a group of functions around same domain (rent payments, conditional reports, renter credit reporting, etc.).
+
+1. One folder per service;
+2. Each method lives in its own file;
+3. The method name and file name MUST be the same;
+4. The test file lives next to the method file with no additional folder;
+5. The test file name MUST be the same as the method name, with a .spec suffix;
+6. Emails connected to the service live in a separate directory inside the service directory.
+
+#### Caveats
+
+When writing a method within a service, ensure it validates input data.
+
+```javascript
+// Bad ❌
+const sendEmailToTenant = async (tenantEmail) => {
+  await mailer.sendHtml({ to: tenantEmail });
+};
+
+// Good ✅
+const sendEmailToTenant = async (tenantEmail) => {
+  if (!tenantEmail) {
+    throw new Error('Tenant email is required!');
+  }
+  await mailer.sendHtml({ to: tenantEmail });
+};
+```
+
+Keep number of arguments at maximum of 4. If you need more arguments, consider using an object instead, as it can be easier to understand the purpose.
+
+```javascript
+// Bad ❌
+const getAmountReceivedByOwner = async (
+  ownerId,
+  excludeOfflinePayments = false,
+  timePeriod = '1 days',
+  includeDeleted = false,
+  formatAmount = false,
+) => { ... }
+
+// this makes it hard to read and understand the method and what it does
+getAmountReceivedByOwner(102, false, '1 week', false, true);
+
+// Good ✅
+const getAmountReceivedByOwner = async ({
+  ownerId,
+  excludeOfflinePayments,
+  timePeriod,
+  includeDeleted,
+  formatAmount,
+}) => { ... }
+
+// this is much easier to understand
+getAmountReceivedByOwner({
+  ownerId: 102,
+  timePeriod: '1 week',
+  formatAmount: true,
+});
+// you'll notice that we don't have to pass values that already have default values
+```
+
+### 3. Database
+
+#### Table Name Conventions
+
+- Always use snake case (my_field_name) for column names;
+- Table names should always be in plural form.
+
+#### Column Name Conventions
+
+- Always use snake case (my_field_name) for column names;
+- Use camel case for virtual fields (myVirtualField);
+- If the fields will hold a date or time value, it should end in \_at;
+- If the field is boolean, it should start with is* or has*.
+
+```javascript
+// Bad ❌
+lastName: {
+  type: DataTypes.STRING,
+  defaultValue: null,
+  allowNull: true,
+},
+confirmed: {
+  type: DataTypes.BOOLEAN,
+  allowNull: true,
+},
+display_name: {
+  type: DataTypes.VIRTUAL,
+  get() { ... },
+  set(value) { ... },
+}
+
+// Good ✅
+last_name: {
+  type: DataTypes.STRING,
+  defaultValue: null,
+  allowNull: true,
+},
+is_confirmed: {
+  type: DataTypes.BOOLEAN,
+  allowNull: true,
+},
+displayName: {
+  type: DataTypes.VIRTUAL,
+  get() { ... },
+  set(value) { ... },
+}
+```
+
+#### Removing columns
+
+When you need to remove a field from a database model, you should ALWAYS remove all the usages first and the field definition from the model.
+
+Once that's merged and released, you SHOULD create a follow up case to remove the field from database as well. You should create a migration file that will remove the column from the database. This way we prevent errors across the teams, where a field is removed from the DB, but not from the models since the code was not merged into main yet.
+
+**RULE OF THUMB:**
+
+- Never remove a column completely in the same release.
+- First remove all the usages and the column from the model file.
+- After that's released, you can proceed with the migration to remove the column from the DB.
+
+#### Migrations
+
+When you need to add a new column to a table, and this column will have a new default value, or you need to backfill the new column with a specific value, it's always required that you disable the triggers in that table so we don't chain a lot of updates that will take down the production DB.
+
+Since we have many tables, and you cannot remember which ones have triggers, you can rely on using this helper function that will do the work for you.
+
+Once you wrap your code with this helper, it will disable all the triggers, execute the query and enable back all of them again.
+
+Here is how you can use it:
+
+```javascript
+const updaterFn = async (transaction) => {
+  await Sequelize.query(
+    `
+    UPDATE owners SET application_fee = 55 WHERE id = 123;
+    `,
+    {
+      type: Sequelize.QueryTypes.UPDATE,
+      transaction,
+    },
+  );
+};
+
+await withDisabledTriggers(updaterFn);
+```
+
+#### Use constants for ENUM fields in models
+
+In order to keep code organized and reusable, we should use constants for our ENUM types for models. When you are creating migration files, you should always use the String type for fields, like status, type, etc… but inside the model itself, you should always use the ENUM type.
+
+The reason for this is that we can easily add/update/remove ENUM types inside models, without actually altering table structure.
+
+The benefit of having ENUM strings inside constants is when we need to change the value of ENUM, we do that just in one place inside constant and that's it.
+
+Example:
+
+```javascript
+export const VIP_SUPPORT_ADDON_STATUSES = {
+  ACTIVE: 'ACTIVE',
+  ACTIVE_LEGACY: 'ACTIVE_LEGACY',
+};
+
+// -------
+
+import { VIP_SUPPORT_ADDON_STATUSES } from '../../constants/enums';
+
+...
+
+vip_support_active: {
+  type: DataTypes.ENUM(...Object.keys(VIP_SUPPORT_ADDON_STATUSES)),
+  allowNull: true,
+},
+```
+
+## Unit Testing - General Coding Standards
+
+See also: @unit-tests.mdc for API unit testing patterns, DB usage policy, and mocking guidelines.
+
+Unit tests in the Back End project are divided into two different groups, one that runs all the tests in parallel and the second one runs tests in sequence.
+
+These tests are partitioned using different extensions, the ones that run in parallel, we use the .spec.js extension, and for the tests that should run in sequence, we use the .espec.js extension.
+
+All tests that run in parallel share the same database instance, so a developer should ensure that data used in test won't collide with data used in other test.
+
+### Don't hardcode IDs
+
+When a model is created don't pass value for id, that should be handled by the DB. This way we ensure no collision with data in other tests.
+
+Same applies for encoded IDs. Use the toGlobalId method to compute it based on the model's id.
+
+```javascript
+// Bad ❌
+const owner = await models.owners.create({
+  id: 1,
+  email: 'wile.coyote@example.com',
+});
+
+// Good ✅
+const owner = await models.owners.create({
+  email: 'wile.coyote@example.com',
+});
+```
+
+### Create real fixtures
+
+A test is a representation of something that could happen in production, so when creating fixtures for a specific scenario, ensure to fulfill not only the required fields, but also the possible relationships with other tables.
+
+For example, if you are creating a lease with renters, it's not enough to create lease and renter records, but we should also create the leases_renters relation.
+
+Sometimes a field is not required in the DB, but it will never be null, in a real scenario. For example, owner's email address field, so following this rule, no one should create an owner without email in a test file.
+
+In general, you should not mock ORM calls towards the DB, but create actual records in your local DB via fixtures. This ensures that DB modeling/insertion isn't broken due to i.e. data type mismatches.
+
+### Use Test Utils
+
+Use the helper methods from the api/src/test-utils/fixtures/index.js file.
+
+```javascript
+// OK 🆗
+it('should test something', () => {
+  const owner = await models.owners.create({
+    email: getRandomEmail(),
+  });
+  expect(callAMethod(owner.id));
+});
+
+// Good ✅
+import fixtures from '../test-utils/fixtures';
+it('should test something', () => {
+  const owner = await fixtures.owners.createOne();
+  expect(callAMethod(owner.id));
+});
+```
+
+### Use declarative scenario names
+
+Use titles that represent the scenario that you are testing. This will help other devs to understand what a test file does and covers.
+
+```javascript
+// Bad ❌
+it('test 1', async () => {
+  ...
+});
+
+// Good ✅
+it('should throw error if owner ID not passed in', async () => {
+  ...
+});
+```
+
+### Different methods, different files
+
+Don't use the same file to test more than one function. Each method should be tested in its own file, no matter if they are service method or mutations.
+
+### Don't rely in array order
+
+If the data is not being ordered explicitly, don't test the array assuming it will be always in the same order.
+
+Do not test relying on fixed indices, but instead search for items in the array and test over that. That reduces the chance of a random failure, if the array order changes between executions.
+
+This also applies when you test the params in a spy function call. In each execution, the method could be called in different order which will change the parameters array order.
+
+```javascript
+// Bad ❌
+it('should return unconfirmed users', async () => {
+  const res = await getResults();
+  expect(res[3].email).toBe('wile.coyote@example.com');
+  expect(res[3].confirmed).toBe(false);
+});
+
+// Good ✅
+it('should return unconfirmed users', async () => {
+  const res = await getResults();
+
+  const wile = res.find((r) => r.email === 'wile.coyote@example.com');
+  expect(wile.confirmed).toBe(false);
+});
+```
+
+### Mock other services
+
+Mocking other services can reduce the number of scenarios, or fixtures, needed in a test case.
+
+```javascript
+// file: getPastDueCharges.js
+const getPastDueCharges = async () => {
+  ...
+}
+export default getPastDueCharges;
+
+// file: sendPastDueChargeNotificationEmails.js
+const sendPastDueChargeNotificationEmails = async () => {
+  const pastDueCharges = await getPastDueCharges();
+
+  return Promise.all(pastDueCharges.map((charge) => sendEmail(charge)));
+}
+
+// OK 🆗
+it('should test something', () => {
+  // we're creating a bunch of fixtures
+  await createFixtures();
+  const paymentRequests = await sendPastDueChargeNotificationEmails();
+
+  expect(paymentRequests.length).toBe(10);
+});
+
+// Good ✅
+import getPaymentRequestsDueToday from '../getPaymentRequestsDueToday';
+jest.mock('../getPaymentRequestsDueToday');
+
+it('should test something', () => {
+  getPaymentRequestsDueToday.mockResolvedValue([
+    { id: 1, amount: 100, due_date: '2024-01-21' },
+    { id: 1, amount: 100, due_date: '2024-01-11' }
+  ]);
+
+  const paymentRequests = await sendPastDueChargeNotificationEmails();
+
+  expect(paymentRequests.length).toBe(2);
+});
+```
+
+### Concurrent Tests
+
+This rules are only applied when you are writing a test that will be run as part of the concurrent suite, this mean that this test will share a DB and it will be executed at the same time with other tests.
+
+#### Don't use resetDB
+
+This should never be used in a concurrent test since it will try to resync the entire DB while it's accessed by other test at that moment. This is handled only when the jest job starts.
+
+#### Don't destroy rows from db
+
+Try to avoid deleting rows from the DB in the afterEach or beforeEach. Keep in mind rows are being used and created all the time by other tests, so trying to remove all the rows from a table will cause for sure issues in other tests or foreign keys problems. This can only be done if you are really sure that you are only deleting the rows that your file created.
+
+#### Don't call sequelize close
+
+As with resetDB, this should never be called since it will close all the active connections with the DB which will make other tests to fail. This is automatically handled.
+
+## Comments within code
+
+### Add comments where needed
+
+Having comments inside your code is sometimes very useful. When a piece of code or method is complex, add a comment above it, with some brief explanation. The reviewer, or the next developer who works on the codebase will have more context around it, and will understand it better.
+
+Beware of the fact that excessive comments can be counterproductive - if comments explain what's already obvious from the code itself, then they're extraneous and should be removed. If you notice that your code requires lots of comments, you can probably simplify it to a degree.
+
+```javascript
+// Bad ❌ (Overcommenting)
+
+// Loop through each user
+for (let user of users) {
+  // Check if the user is active
+  if (user.isActive()) {
+```
+
+A good example of using comments inside code is when you are implementing a 3rd party service that has some parameters that can break our application if changed. You should put a comment above that code:
+
+```javascript
+fetch(apiUrl, {
+  headers: {
+    // DO NOT CHANGE THIS, it can break when used something different
+    apiVersion: ['v1', 'json'],
+    // ...
+  },
+  // ...
+});
+```
+
+### Usage of FIXME and MOCKED inside comments
+
+In order to prevent hotfixes from breaking our application, we introduced two keywords that developers are encouraged to use inside comments. These two are important because we have some ESLint rules that will prevent merging PRs into main that have FIXME or MOCKED keywords inside code changes.
+
+#### FIXME
+
+If you have something that should be fixed or it's broken inside your PR and you did not have a chance to fix it before pushing your PR, make sure to add the FIXME keyword in the comments with some context around what should be fixed.
+
+```javascript
+// FIXME
+// Did not have chance to fix this validation, will do it in next PR.
+```
+
+#### MOCKED
+
+If you are working on the FE part of our application and BE is not ready yet, but you want to make sure your code works, you can mock BE data and push your PR. But, you need to remember to add the MOCKED keyword inside a comment, in order to prevent pushing mocked data to production.
+
+```javascript
+// MOCKED
+// This date is mocked, make sure to use created_at once BE part is done
+getFormattedDate('2018-12-28');
+```
+
+### Do not comment out unused files
+
+Files or directories that are not used anymore should be removed entirely, not commented out. This is in order to reduce clutter within our codebase and reduce confusion.
+
+If there's future work that should be done on that file at an unspecified time in the future, create a note of it (i.e. Trello case) and remove the file.
+
+The file can always be retrieved from the version control software (git in our case).
+
+## "Global" exports
+
+We should try to avoid having one export file for everything.
+
+It can be great to export everything from one file and have one place where you can take anything you want. That approach is great when you start a project and it makes things much easier and faster.
+
+As the project grows we try to improve things by changing and removing the code. That approach prevents us from doing that because in JavaScript there is no easy way to figure out what is used and how. So instead of changing the method to do something else we are scared of doing that change so things do not break we add a new similar method. When splitting everything into each file we can easily figure out where that file is included and if we can remove it or not.
+
+Our build tools can optimize the final build, but because of the nature of JavaScript and side effects, it's not easy for build tools to figure out if some things are used or not.
+
+So it makes sense to only include things we are using, and not dead code, and make our application faster by shipping only the things that are actually used on a page.
+
+```javascript
+// Bad ❌
+import { trimWhiteSpace, logError } from './src/utilities';
+
+// Good ✅
+import trimWhiteSpace from './src/utilities/trim-white-space.js';
+import logError from './src/utilities/log-error.js';
+```
+
+## Storybook
+
+Stories should be located in the same folder as the component, and should have a stories.js suffix.
+
+```javascript
+// Bad ❌
+// fe/src/components/Button/Button.js
+// fe/src/components/Button/stories/Button.js
+
+// Good ✅
+// fe/src/components/Button/Button.js
+// fe/src/components/Button/Button.stories.js
+```
+
+For more details how to write stories, please refer to the official docs.
+
+## Styling (CSS Modules)
+
+### File Naming Convention
+
+Use the name of the component for SCSS module files and just add the extension: e.g., myComponent.module.scss.
+
+### Use SCSS Nesting Judiciously
+
+Avoid over-nesting (limit to 2–3 levels) to maintain readability and avoid specificity issues.
+
+### Variable Usage
+
+Define reusable variables in a separate file (\_colors, \_animations, \_fonts, etc.)
+Always check if there's existing variable for the property you are trying to define before doing so
+
+### Mixins and Functions
+
+Use mixins for repetitive style patterns.
+Place common mixins in common files for reusability.
+(for now we have the media query mixins in \_media_breakpoints.scss)
+
+### SCSS Placeholders (%)
+
+Use placeholders for shared style patterns that are not tied to a specific class. This helps avoid unnecessary CSS output while keeping your code modular and reusable.
+
+Avoid using placeholders for styles that are specific to only one component or class.
+Use them for abstracting highly reusable patterns like layouts, typography, or common behaviors.
+
+```scss
+// Bad ❌
+.redTextBox {
+  box-sizing: border-box;
+  border-top: 1px rgba(#000, 0.12) solid;
+  padding: 16px 0;
+  width: 100%;
+  &:hover {
+    border: 2px rgba(#000, 0.5) solid;
+  }
+  // only thing thats different
+  color: red;
+}
+
+.blueTextBox {
+  box-sizing: border-box;
+  border-top: 1px rgba(#000, 0.12) solid;
+  padding: 16px 0;
+  width: 100%;
+  &:hover {
+    border: 2px rgba(#000, 0.5) solid;
+  }
+  // only thing thats different
+  color: blue;
+}
+
+// Good ✅
+%box {
+  box-sizing: border-box;
+  border-top: 1px rgba(#000, 0.12) solid;
+  padding: 16px 0;
+  width: 100%;
+  &:hover {
+    border: 2px rgba(#000, 0.5) solid;
+  }
+}
+
+.redTextBox {
+  @extend %box;
+  color: red;
+}
+
+.blueTextBox {
+  @extend %box;
+  color: blue;
+}
+```
+
+### Modular Scope
+
+Each SCSS module should scope styles to its specific component.
+Avoid global selectors unless intentional for shared styles.
+
+### Color and Typography Standards
+
+Always use predefined variables for colors, font sizes, and other repeated values to maintain consistency.
+Also if we have to change them in a codebase as large as ours it can take a long time if they are not tied to a single source For example if we wanted to change the primary color
+
+### Avoid Inline Styles
+
+Inline styles should be avoided in favor of SCSS for better maintainability.
+
+### Media Queries
+
+Use SCSS nesting for media queries within the component's context:
+Use media query mixins that we have @mq-up and @mq-down instead of window.innerWidth since we can leverage the GPU to do our work instead of CPU
+
+Example:
+
+```scss
+.container {
+  @include mq-down(smallScreenWidth) {
+    max-width: 100%;
+    flex-direction: column;
+  }
+}
+```
+
+### No Hardcoded Values
+
+Avoid hardcoded values where variables, mixins, mappers and placeholders can be used instead.
+
+### General CSS Guidelines
+
+Try to use CSS for things that can be done in CSS. It's more performant than JavaScript because it's using GPU instead of CPU so when you can leverage CSS instead of JavaScript.
+
+Instead of using onMouseEnter and onMouseLeave to style the components use :hover
+
+Avoid !important at all costs. If you want to be more specific you can use select parent classes or classes that are on that same component. Scss makes it easier for you to do that
+
+```scss
+// Bad ❌
+.class {
+  display: flex !important;
+}
+
+// Good ✅
+.class {
+  // add .flex class for specificity
+  &.flex {
+    display: flex;
+  }
+}
+```
+
+Use classnames utility function to handle class name concatenation
+
+```javascript
+import cx from 'classnames';
+
+import styles from './Button.module.scss';
+
+const isPrimary = false;
+// className is usually passed through props
+const className = 'parent';
+
+cx(
+  styles.button,
+  {
+    // this is how we handle dynamic classes
+    [styles.primary]: isPrimary,
+  },
+  className,
+);
+```
+
+You can handle multiple variants of a class in SCSS in the following way:
+
+```scss
+.button {
+  &--primary {
+    background-color: $primaryBlue;
+    color: $white;
+  }
+
+  &--secondary {
+    background-color: $secondaryBlue;
+    color: $textPrimary;
+  }
+}
+```
+
+### Assets locations
+
+Here are some of the locations of the files you will be using while working on CSS features and updates
+
+**Color variables:**
+
+- JS colors: fe/src/constants/colors.js
+- SCSS colors: fe/src/constants/\_colors.scss
+
+Important to note that if you are changing a hex of a color, you need to update both files
+
+**Screen breakpoints:** fe/src/constants/\_media_breakpoints.scss
+
+**Typography:** fe/src/components/Typography
+
+## Accessibility
+
+While working on the app, you should always keep accessibility in mind. Keep your HTML code as semantic as possible.
+
+Some of the things you should keep in mind:
+
+- don't use div's for everything;
+- the label tag should always include id, as a reference to an element;
+- img should always have an alt tag;
+- don't override CSS outline property without a fallback;
+- have only one h1 tag on the page;
+- use ul, ol and dl for list content;
+- when attaching a click handler use button instead of div;
+- use an a element to link to another page instead of onClick listeners and history.push.
+
+## TypeScript
+
+### Imports and exports
+
+When importing types, use the import type syntax.
+
+```typescript
+// Bad ❌
+import { PaymentRequest } from '../types';
+
+// Good ✅
+import type { PaymentRequest } from '../types';
+```
+
+### Type vs Interface
+
+Prefer to use type declarations.
+
+This allows us to:
+
+- define union, intersection and other algebraic data types more easily.
+- it avoids some common mistakes such as unintentional interface merging.
+- allows us to define our own primitive types, not just objects.
+- allows us to use utility types/generics more easily, i.e. Omit<T>.
+
+This will be enforced by eslint rules.
+
+Also, the language's called TypeScript, not InterfaceScript
+
+### Type annotations
+
+Do not annotate variables that are trivial to infer as it only introduces clutter.
+
+```typescript
+// Bad ❌
+const five: number = 5;
+
+// Good ✅
+const five = 5;
+```
+
+Always annotate function parameters and their return types, as well as cross-service objects (if present, but shouldn't be).
+
+Functions that receive objects as parameter(s) should have explicit types defined, if the objects have more than 4 properties (as seen in section below too).
+
+### Defining types
+
+When writing a TS module, you should split the custom types that you defined into its own types.ts file within the same module/service if there's more than 3 custom types and/or if those types are used in other services.
+
+If the service is a file, rather than a folder, you can create the folder for that service and place the types file there.
+
+### Function parameters/props
+
+If the function has more than 4 parameters (as defined by an eslint rule), define a type for those parameters.
+
+Also, if there's a single (or more) object parameter(s) that have more than 4 properties, ensure that you create a specific type for that, instead of leaving it inline.
+
+**Naming convention:**
+
+- Use FunctionNameParams as the naming convention on BE and standard functions
+- Use ComponentNameProps for React components
+
+Of course, you can (and probably should) also define a type for less than (or) 4 parameters too, especially if you notice that the function definition becomes unreadable (i.e. if the params are complex or have long names).
+
+```typescript
+// Bad ❌
+async function updateRenter(params: { someProperty: string, someOtherProperty: number, ... }) { ... }
+
+// Good ✅
+type UpdateRenterParams = {
+  id: number;
+  payouts_paused?: boolean;
+}
+async function updateRenter(params: UpdateRenterParams): Promise<Renter> { ... }
+```
+
+### Any?
+
+No. If necessary, use unknown. If you use unknown as a function parameter, please use type narrowing in the function definition itself for further typechecking.
+
+### DB models
+
+Some Sequelize models have their type definition file within the src/models/typed_models folder. When you interact with models where that is the case, you should rewrite their .js model definition file into .ts. You can use some of the other models that are already moved to TS as an example (i.e. db/models/seon_transactions.ts).
+
+After you migrate the model from a .js to a .ts definition, you can safely remove the typed_models file for that model.
+
+Models that aren't moved to this standard (but instead use typed_models approach) will not properly do casting in case of queries and won't have attribute narrowing.
+
+There is ongoing work to improve the TS compatibility with our existing Sequelize ORM implementation.
+
+### Frontend
+
+Please use React.FC<Props> when defining React components, as it will provide some default properties, such as displayName.
+
+## Backfill scripts
+
+Backfill script is a utility script that populates or updates missing data in a database, often used for initial data loading, migration, or correcting data inconsistencies.
+
+### Location
+
+They are located in the api/bin folder.
+
+### File name format
+
+The file name should be formatted to include the date the script was created, followed by a descriptive name.
+
+```javascript
+// Bad ❌
+// api/bin/backfill-users.js
+// api/bin/2024-02-12-backfill-data.js
+
+// Good ✅
+// api/bin/20240212-populate-origin-platform-on-rent-payments.js
+```
+
+Always avoid making changes to timestamps fields in the updated sequelize models. This can be ensured by using the silent: true sequelize option.
+
+## Deprecated
+
+Codebase as well as coding standards and best practices evolve over time. What is set for now, may change in the future, a new library may be adopted, etc. Below you'll find a list of things that are considered deprecated and will be removed in future.
+
+### Do not use
+
+- Do not use existing components Column, Container and Row in the Frontend;
+- Do not use the TT Object within the api/ project;
+
+---
+
+**When generating code, always follow these comprehensive standards unless explicitly told otherwise. Ask for clarification if standards conflict with specific requirements.**

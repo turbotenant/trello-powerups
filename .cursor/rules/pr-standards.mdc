@@ -1,0 +1,30 @@
+---
+alwaysApply: false
+---
+
+```markdown
+## Description
+
+Please include a summary of the changes and which issues were fixed. Always provide this information as bullet points.
+Please also include relevant motivation and context for reviewer, so that's easier to understand code changes.
+
+Trello Case URL: (link to Trello case goes here)
+
+## Release Notes
+
+Please make sure to add release notes below, if there are any. You should include enough detail that anyone can release your code to production.
+
+- [ ] This pull request contains DB patch (migration file). Please add any enough details below for release. If the migration needs to run manually or after the code is merged, you should give instructions.
+- [ ] Do not remove a database column and modify the model in the same PR. These changes must be split into separate PRs: first, update the model and release it; then, in a later PR, remove the DB column. This prevents breaking other engineers' code and avoids production downtime during migrations when the old backend is still running.
+- [ ] I have reviewed the [Pull Request Creation Checklist](https://github.com/turbotenant/main/wiki/Pull-Request-creation-checklist) and all the applicable steps on it have been completed.
+```
+
+Use this exact template structure when creating PR descriptions.
+
+The PR description should always be about the current committed changes of the current branch.
+
+Do not ever check the checkboxes in the Release Notes section. That is something users need to do themselves.
+
+Avoid merge with `main` branch related changes, only focus with the other commits.
+
+Always return the PR description in Markdown format (using the enclosing \`\`\`markdown and \`\`\` lines) so users can copy/paste this in GitHub.
