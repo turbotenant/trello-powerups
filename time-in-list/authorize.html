@@ -35,20 +35,32 @@
       appKey: APP_KEY,
       appName: APP_NAME,
     });
-    var authBtn = document.getElementById('auth-btn');
 
+    var authBtn = document.getElementById('auth-btn');
     authBtn.addEventListener('click', function() {
       authBtn.textContent = 'Authorizing...';
       authBtn.disabled = true;
 
       t.getRestApi()
-      .authorize({ scope: "read,write" })
+        .authorize({ scope: "read,write", expiration: "never" })
+        .then(function(token) {
+          // Store the token at organization level, with fallback to board level
+          return t.set("organization", "private", "token", token)
+            .catch(function() {
+              // If organization storage fails, fall back to board level
+              return t.set("board", "private", "token", token);
+            });
+        })
         .then(function() {
-          return t.closePopup();
+          authBtn.textContent = 'Authorized!';
+          setTimeout(function() {
+            return t.closePopup();
+          }, 500);
         })
         .catch(function(error) {
           console.error('Authorization failed:', error);
-          authBtn.textContent = 'Authorization Failed';
+          authBtn.textContent = 'Authorization Failed - Try Again';
+          authBtn.disabled = false;
         });
     });
   </script>

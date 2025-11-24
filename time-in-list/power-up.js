@@ -257,6 +257,17 @@ const calculateCurrentListTime = async (t) => {
   const response = await fetch(
     `https://api.trello.com/1/cards/${card.id}/actions?filter=updateCard:idList,createCard&key=${APP_KEY}&token=${token}&limit=1`
   );
+
+  // Check if the response is OK before parsing JSON
+  if (!response.ok) {
+    console.error(
+      "❌ API request failed:",
+      response.status,
+      response.statusText
+    );
+    return null;
+  }
+
   const actions = await response.json();
 
   let startDate;
@@ -298,6 +309,29 @@ if (window.location.href.includes("index.html")) {
       appName: APP_NAME,
     });
     try {
+      // Helper function to show authorization UI
+      const showAuthUI = () => {
+        console.log("🔍 Showing authorize UI");
+        const timeListElement = document.getElementById("time-list");
+        timeListElement.innerHTML = `
+          <div style="text-align: center; padding: 20px;">
+            <h3 style="margin: 0 0 15px 0;">Authorize Time in List</h3>
+            <p style="margin: 0 0 15px 0;">Please authorize this Power-Up to read card history.</p>
+            <button id="auth-btn" style="background-color: #0079bf; color: white; border: none; padding: 10px 20px; border-radius: 3px; cursor: pointer; font-size: 14px;">
+              Authorize
+            </button>
+          </div>
+        `;
+
+        const authBtn = document.getElementById("auth-btn");
+        authBtn.addEventListener("click", function (event) {
+          console.log("🔘 Authorize button clicked, opening popup");
+          showAuthorizePopup(t, event);
+        });
+
+        t.sizeTo("#content");
+      };
+
       const renderTimeInList = (history, pauseEvents, t) => {
         const timeListElement = document.getElementById("time-list");
 
@@ -395,13 +429,8 @@ if (window.location.href.includes("index.html")) {
 
       const token = await getAuthToken(t);
       if (!token) {
-        console.log("🔍 No token, showing authorize popup");
-        return [
-          {
-            text: "Authorize",
-            callback: showAuthorizePopup,
-          },
-        ];
+        showAuthUI();
+        return;
       }
 
       // We have a token, now get the card and fetch actions
@@ -410,6 +439,22 @@ if (window.location.href.includes("index.html")) {
       const response = await fetch(
         `https://api.trello.com/1/cards/${card.id}/actions?filter=updateCard:idList,createCard&key=${APP_KEY}&token=${token}`
       );
+
+      // Check if the response is OK before parsing JSON
+      if (!response.ok) {
+        console.error(
+          "❌ API request failed:",
+          response.status,
+          response.statusText
+        );
+        // Token might be invalid, clear it and show auth UI
+        await t.remove("organization", "private", "token").catch(() => {
+          return t.remove("board", "private", "token");
+        });
+        showAuthUI();
+        return;
+      }
+
       const actions = await response.json();
 
       const history = buildCardHistory(actions, card.id);
@@ -449,14 +494,14 @@ if (window.location.href.includes("index.html")) {
       "card-back-section": function (t, options) {
         console.log("✅ card-back-section Time in List callback triggered");
         return {
-          title: "Time in List Facu",
+          title: "Time in List",
           icon: "https://cdn-icons-png.flaticon.com/512/2088/2088617.png",
           content: {
             type: "iframe",
             url: t.signUrl(
               "https://turbotenant.github.io/trello-powerups/time-in-list/index.html"
             ),
-            height: 200,
+            height: "auto",
           },
         };
       },
