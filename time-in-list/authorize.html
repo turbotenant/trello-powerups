@@ -44,6 +44,7 @@
       t.getRestApi()
         .authorize({ scope: "read,write", expiration: "never" })
         .then(function(token) {
+          console.log("🔍 Token auth:", token);
           // Store the token at organization level, with fallback to board level
           return t.set("organization", "private", "token", token)
             .catch(function() {
@@ -53,9 +54,7 @@
         })
         .then(function() {
           authBtn.textContent = 'Authorized!';
-          setTimeout(function() {
-            return t.closePopup();
-          }, 500);
+          t.closePopup();
         })
         .catch(function(error) {
           console.error('Authorization failed:', error);

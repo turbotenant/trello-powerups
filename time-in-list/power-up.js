@@ -315,7 +315,6 @@ if (window.location.href.includes("index.html")) {
         const timeListElement = document.getElementById("time-list");
         timeListElement.innerHTML = `
           <div style="text-align: center; padding: 20px;">
-            <h3 style="margin: 0 0 15px 0;">Authorize Time in List</h3>
             <p style="margin: 0 0 15px 0;">Please authorize this Power-Up to read card history.</p>
             <button id="auth-btn" style="background-color: #0079bf; color: white; border: none; padding: 10px 20px; border-radius: 3px; cursor: pointer; font-size: 14px;">
               Authorize
@@ -439,7 +438,7 @@ if (window.location.href.includes("index.html")) {
       const response = await fetch(
         `https://api.trello.com/1/cards/${card.id}/actions?filter=updateCard:idList,createCard&key=${APP_KEY}&token=${token}`
       );
-
+      console.log("🔍 Response:", response);
       // Check if the response is OK before parsing JSON
       if (!response.ok) {
         console.error(
