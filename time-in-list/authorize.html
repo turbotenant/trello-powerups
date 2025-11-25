@@ -30,6 +30,7 @@
   <button id="auth-btn">Authorize</button>
 
   <script src="./constants.js"></script>
+  <script src="../shared/auth-helpers.js"></script>
   <script>
     var t = TrelloPowerUp.iframe({
       appKey: APP_KEY,
@@ -41,26 +42,10 @@
       authBtn.textContent = 'Authorizing...';
       authBtn.disabled = true;
 
-      t.getRestApi()
-        .authorize({ scope: "read,write", expiration: "never" })
-        .then(function(token) {
-          console.log("🔍 Token auth:", token);
-          // Store the token at organization level, with fallback to board level
-          return t.set("organization", "private", "token", token)
-            .catch(function() {
-              // If organization storage fails, fall back to board level
-              return t.set("board", "private", "token", token);
-            });
-        })
-        .then(function() {
-          authBtn.textContent = 'Authorized!';
-          t.closePopup();
-        })
-        .catch(function(error) {
-          console.error('Authorization failed:', error);
-          authBtn.textContent = 'Authorization Failed - Try Again';
-          authBtn.disabled = false;
-        });
+     handleAuthorization(t, authBtn, () => {
+      t.closePopup();
+      location.reload();
+     });
     });
   </script>
 </body>

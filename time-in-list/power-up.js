@@ -1,10 +1,10 @@
 /* global TrelloPowerUp, dayjs, APP_KEY, APP_NAME */
 
 // === DEBUG LOGGING ===
-console.log("🚀 Power-Up Time in List script loaded!");
-console.log("📍 Current URL Time in List:", window.location.href);
-console.log("🔍 TrelloPowerUp available Time in List:", typeof TrelloPowerUp);
-console.log("📅 dayjs available Time in List:", typeof dayjs);
+// console.log("🚀 Power-Up Time in List script loaded!");
+// console.log("📍 Current URL Time in List:", window.location.href);
+// console.log("🔍 TrelloPowerUp available Time in List:", typeof TrelloPowerUp);
+// console.log("📅 dayjs available Time in List:", typeof dayjs);
 // === END DEBUG ===
 
 // ===== SHARED HELPER FUNCTIONS =====
@@ -311,7 +311,7 @@ if (window.location.href.includes("index.html")) {
     try {
       // Helper function to show authorization UI
       const showAuthUI = () => {
-        console.log("🔍 Showing authorize UI");
+        // console.log("🔍 Showing authorize UI");
         const timeListElement = document.getElementById("time-list");
         timeListElement.innerHTML = `
           <div style="text-align: center; padding: 20px;">
@@ -324,10 +324,10 @@ if (window.location.href.includes("index.html")) {
 
         const authBtn = document.getElementById("auth-btn");
         authBtn.addEventListener("click", function (event) {
-          console.log("🔘 Authorize button clicked, opening popup");
+          // console.log("🔘 Authorize button clicked, opening popup");
           // showAuthorizePopup(t, event);
           handleAuthorization(t, authBtn, () => {
-            console.log("🔍 Authorization successful, closing popup");
+            // console.log("🔍 Authorization successful, closing popup");
             t.closePopup();
             location.reload();
           });
@@ -443,7 +443,7 @@ if (window.location.href.includes("index.html")) {
       const response = await fetch(
         `https://api.trello.com/1/cards/${card.id}/actions?filter=updateCard:idList,createCard&key=${APP_KEY}&token=${token}`
       );
-      console.log("🔍 Response:", response);
+
       // Check if the response is OK before parsing JSON
       if (!response.ok) {
         console.error(
@@ -477,14 +477,14 @@ if (window.location.href.includes("index.html")) {
   });
 } else {
   // MAIN POWER-UP CODE - runs when Trello loads the Power-Up
-  console.log("🎯 Initializing Power-Up Time in List in main context");
+  // console.log("🎯 Initializing Power-Up Time in List in main context");
 
   TrelloPowerUp.initialize(
     {
       "on-enable": async function (t, options) {
-        console.log(
-          "✅ Power-Up Time in List enabled, checking authorization."
-        );
+        // console.log(
+        //   "✅ Power-Up Time in List enabled, checking authorization."
+        // );
         const token = await getAuthToken(t);
 
         if (!token) {
@@ -496,7 +496,7 @@ if (window.location.href.includes("index.html")) {
         }
       },
       "card-back-section": function (t, options) {
-        console.log("✅ card-back-section Time in List callback triggered");
+        // console.log("✅ card-back-section Time in List callback triggered");
         return {
           title: "Time in List",
           icon: "https://cdn-icons-png.flaticon.com/512/2088/2088617.png",
@@ -533,7 +533,7 @@ if (window.location.href.includes("index.html")) {
         }
       },
       "card-buttons": async function (t, options) {
-        console.log("✅ card-buttons Time in List callback triggered");
+        // console.log("✅ card-buttons Time in List callback triggered");
         try {
           const pauseEvents = await getPauseEvents(t);
           const isPaused = isCardPaused(pauseEvents);
@@ -553,7 +553,7 @@ if (window.location.href.includes("index.html")) {
         }
       },
       "card-detail-badges": async function (t, options) {
-        console.log("✅ card-detail-badges Time in List callback triggered");
+        // console.log("✅ card-detail-badges Time in List callback triggered");
         try {
           const timeInfo = await calculateCurrentListTime(t);
 
@@ -593,5 +593,5 @@ if (window.location.href.includes("index.html")) {
     }
   );
 
-  console.log("✨ Power-Up Time in List initialization complete");
+  // console.log("✨ Power-Up Time in List initialization complete");
 }
