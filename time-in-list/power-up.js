@@ -325,7 +325,12 @@ if (window.location.href.includes("index.html")) {
         const authBtn = document.getElementById("auth-btn");
         authBtn.addEventListener("click", function (event) {
           console.log("🔘 Authorize button clicked, opening popup");
-          showAuthorizePopup(t, event);
+          // showAuthorizePopup(t, event);
+          handleAuthorization(t, authBtn, () => {
+            console.log("🔍 Authorization successful, closing popup");
+            t.closePopup();
+            location.reload();
+          });
         });
 
         t.sizeTo("#content");
