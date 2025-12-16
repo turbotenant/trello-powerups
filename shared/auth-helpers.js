@@ -32,19 +32,19 @@ const getAuthToken = async (t) => {
  * @param {Function} onSuccess - Callback function to execute after successful authorization.
  */
 const handleAuthorization = (t, authBtn, onSuccess) => {
-  console.log("🔐 Starting authorization flow...");
+  // console.log("🔐 Starting authorization flow...");
   authBtn.textContent = "Authorizing...";
   authBtn.disabled = true;
 
   t.getRestApi()
     .authorize({ scope: "read,write", expiration: "never" })
     .then(function (token) {
-      console.log("✅ Authorization successful, token received");
+      // console.log("✅ Authorization successful, token received");
       // Store the token at organization level, with fallback to board level
       return t
         .set("organization", "private", "token", token)
         .catch(function (err) {
-          console.log(
+          console.error(
             "⚠️ Failed to store at org level, trying board level",
             err
           );
@@ -53,7 +53,7 @@ const handleAuthorization = (t, authBtn, onSuccess) => {
         });
     })
     .then(function () {
-      console.log("✅ Token stored successfully");
+      // console.log("✅ Token stored successfully");
       authBtn.textContent = "Authorized!";
       setTimeout(function () {
         if (onSuccess) {
