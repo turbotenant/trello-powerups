@@ -11,6 +11,7 @@ const HOLIDAY_RULES = {
     { month: 6, day: 4, name: "Independence Day" },
     { month: 11, day: 25, name: "Christmas Day" },
     { month: 12, day: 31, name: "New Year's Eve" },
+    { month: 7, day: 14, name: "TurboTenant Day" },
     // NOTE: Add any other fixed-date holidays your company observes here.
   ],
   // Floating holidays, based on the Nth day of the week in a month.
