@@ -241,6 +241,45 @@ const pauseResumeCallback = async (t) => {
 };
 
 /**
+ * Calculates paused time that occurred during a specific time period.
+ * @param {Array} pauseEvents - Array of pause events.
+ * @param {Date} periodStart - Start of the time period.
+ * @param {Date} periodEnd - End of the time period.
+ * @returns {number} Paused minutes within the period.
+ */
+const calculatePausedMinutesInPeriod = (
+  pauseEvents,
+  periodStart,
+  periodEnd
+) => {
+  if (!pauseEvents || pauseEvents.length === 0) {
+    return 0;
+  }
+
+  let pausedMinutes = 0;
+
+  pauseEvents.forEach((event) => {
+    if (event.pausedAt) {
+      const pausedAt = new Date(event.pausedAt);
+      const resumedAt = event.resumedAt
+        ? new Date(event.resumedAt)
+        : new Date();
+
+      // Find the overlap between the pause period and the list period
+      const overlapStart = pausedAt > periodStart ? pausedAt : periodStart;
+      const overlapEnd = resumedAt < periodEnd ? resumedAt : periodEnd;
+
+      // Only calculate if there's an overlap
+      if (overlapStart < overlapEnd) {
+        pausedMinutes += calculateBusinessMinutes(overlapStart, overlapEnd);
+      }
+    }
+  });
+
+  return pausedMinutes;
+};
+
+/**
  * Calculates the time spent in the current list (excluding paused time).
  * @param {Object} t - The Trello Power-Up interface.
  * @returns {Promise<Object>} Object containing { duration, isPaused, pauseEvents }
@@ -254,8 +293,9 @@ const calculateCurrentListTime = async (t) => {
 
   const card = await t.card("id");
 
+  // Fetch ALL actions to build complete history
   const response = await fetch(
-    `https://api.trello.com/1/cards/${card.id}/actions?filter=updateCard:idList,createCard&key=${APP_KEY}&token=${token}&limit=1`
+    `https://api.trello.com/1/cards/${card.id}/actions?filter=updateCard:idList,createCard&key=${APP_KEY}&token=${token}`
   );
 
   // Check if the response is OK before parsing JSON
@@ -270,25 +310,36 @@ const calculateCurrentListTime = async (t) => {
 
   const actions = await response.json();
 
-  let startDate;
+  // Build complete history to find when card entered current list
+  const history = buildCardHistory(actions, card.id);
 
-  if (actions && actions.length > 0) {
-    // Card has movement history - use the last action date
-    startDate = dayjs(actions[0].date).toDate();
+  // Find the current list entry - it's the last entry in history
+  // This represents the MOST RECENT entry into the current list (not a sum of all times)
+  let startDate;
+  if (history && history.length > 0) {
+    const currentListEntry = history.at(-1); // Last entry = most recent entry
+    startDate = dayjs(currentListEntry.enteredAt).toDate();
   } else {
-    // No actions found - extract creation timestamp from card ID
+    // No history found - extract creation timestamp from card ID
     startDate = getCardCreationDate(card.id);
   }
 
-  // Get pause events and calculate paused time
+  // Get pause events
   const pauseEvents = await getPauseEvents(t);
   const isPaused = isCardPaused(pauseEvents);
-  const pausedMinutes = calculateTotalPausedMinutes(pauseEvents);
 
-  // Calculate total elapsed time
-  const totalMinutes = calculateBusinessMinutes(startDate, new Date());
+  // Calculate total elapsed time in current list
+  const now = new Date();
+  const totalMinutes = calculateBusinessMinutes(startDate, now);
 
-  // Subtract paused time from total time
+  // Calculate paused time that occurred during the current list period
+  const pausedMinutes = calculatePausedMinutesInPeriod(
+    pauseEvents,
+    startDate,
+    now
+  );
+
+  // Subtract only the paused time that occurred in the current list
   const activeMinutes = Math.max(0, totalMinutes - pausedMinutes);
   const duration = formatBusinessTime(activeMinutes);
 
@@ -351,7 +402,7 @@ if (window.location.href.includes("index.html")) {
 
         const now = new Date();
 
-        // First pass: calculate durations in minutes for percentage calculation
+        // First pass: calculate durations in minutes per history entry
         const listData = history.map((entry, index) => {
           const startDate = dayjs(entry.enteredAt).toDate();
           const endDate =
@@ -359,17 +410,47 @@ if (window.location.href.includes("index.html")) {
               ? dayjs(history[index + 1].enteredAt).toDate()
               : now;
 
-          const minutes = calculateBusinessMinutes(startDate, endDate);
+          // Calculate total time in this list period
+          const totalMinutes = calculateBusinessMinutes(startDate, endDate);
+
+          // Calculate paused time that occurred during this list period
+          const pausedMinutes = calculatePausedMinutesInPeriod(
+            pauseEvents,
+            startDate,
+            endDate
+          );
+
+          // Subtract paused time from total time
+          const activeMinutes = Math.max(0, totalMinutes - pausedMinutes);
 
           return {
             listName: entry.listName,
-            minutes: minutes,
-            formatted: formatBusinessTime(minutes),
+            minutes: activeMinutes,
+            formatted: formatBusinessTime(activeMinutes),
           };
         });
 
-        // Calculate total minutes for percentage
-        const totalMinutes = listData.reduce(
+        // Aggregate by list name: total minutes and visit count
+        const aggregatedData = listData.reduce((acc, item) => {
+          if (!acc[item.listName]) {
+            acc[item.listName] = {
+              listName: item.listName,
+              minutes: 0,
+              count: 0,
+            };
+          }
+          acc[item.listName].minutes += item.minutes;
+          acc[item.listName].count += 1;
+          return acc;
+        }, {});
+
+        const aggregatedList = Object.values(aggregatedData).map((item) => ({
+          ...item,
+          formatted: formatBusinessTime(item.minutes),
+        }));
+
+        // Total minutes for percentage (from aggregated data)
+        const totalMinutes = aggregatedList.reduce(
           (sum, item) => sum + item.minutes,
           0
         );
@@ -394,14 +475,16 @@ if (window.location.href.includes("index.html")) {
           </div>
         `;
 
-        listData.forEach((item) => {
+        aggregatedList.forEach((item) => {
           const percentage =
             totalMinutes > 0 ? (item.minutes / totalMinutes) * 100 : 0;
+          const countLabel =
+            item.count === 1 ? "1 time" : `${item.count} times`;
 
           html += `<div class="list-item">
                      <div class="list-item-header">
                        <span class="list-name">${item.listName}</span>
-                       <span class="list-time">${item.formatted}</span>
+                       <span class="list-time">${item.formatted} (${countLabel})</span>
                      </div>
                      <div class="progress-bar">
                        <div class="progress-fill" style="width: ${percentage}%"></div>
