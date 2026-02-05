@@ -124,18 +124,49 @@ const getPauseEvents = async (t) => {
 };
 
 /**
+ * Gets the board's pause lists configuration (list IDs that trigger auto-pause).
+ * @param {Object} t - The Trello Power-Up interface.
+ * @returns {Promise<string[]>} Array of list IDs.
+ */
+const getPauseListsConfig = async (t) => {
+  const pauseLists = await t.get("board", "private", "pauseLists");
+  return Array.isArray(pauseLists) ? pauseLists : [];
+};
+
+/**
+ * Saves the board's pause lists configuration.
+ * @param {Object} t - The Trello Power-Up interface.
+ * @param {string[]} listIds - Array of list IDs that should trigger auto-pause.
+ * @returns {Promise<void>}
+ */
+const setPauseListsConfig = async (t, listIds) => {
+  await t.set("board", "private", "pauseLists", listIds || []);
+};
+
+/**
+ * Checks if a list ID is in the pause lists configuration.
+ * @param {string} listId - The list ID to check.
+ * @param {string[]} pauseLists - Array of list IDs from config.
+ * @returns {boolean}
+ */
+const isListInPauseLists = (listId, pauseLists) => {
+  return Array.isArray(pauseLists) && pauseLists.includes(listId);
+};
+
+/**
  * Saves a pause or resume event to card storage.
  * @param {Object} t - The Trello Power-Up interface.
  * @param {string|null} pausedAt - ISO timestamp when paused, or null if resuming.
  * @param {string|null} resumedAt - ISO timestamp when resumed, or null if pausing.
+ * @param {string} [reason='manual'] - 'manual' or 'auto' for pause reason (backward compatible).
  * @returns {Promise<void>}
  */
-const savePauseEvent = async (t, pausedAt, resumedAt) => {
+const savePauseEvent = async (t, pausedAt, resumedAt, reason = "manual") => {
   const pauseEvents = await getPauseEvents(t);
 
   if (pausedAt && !resumedAt) {
     // Creating a new pause event
-    pauseEvents.push({ pausedAt, resumedAt: null });
+    pauseEvents.push({ pausedAt, resumedAt: null, reason });
   } else if (resumedAt && pauseEvents.length > 0) {
     // Resuming - update the last pause event
     const lastEvent = pauseEvents[pauseEvents.length - 1];
@@ -188,7 +219,57 @@ const isCardPaused = (pauseEvents) => {
 };
 
 /**
- * Toggles the pause/resume state of a card's timer.
+ * Checks if the current pause was triggered automatically (list move).
+ * Backward compatibility: missing reason defaults to 'manual'.
+ * @param {Array} pauseEvents - Array of pause events.
+ * @returns {boolean} True if currently paused and last pause was auto.
+ */
+const isLastPauseAuto = (pauseEvents) => {
+  if (!pauseEvents || pauseEvents.length === 0) {
+    return false;
+  }
+  const lastEvent = pauseEvents[pauseEvents.length - 1];
+  const isPaused = lastEvent && lastEvent.pausedAt && !lastEvent.resumedAt;
+  const reason =
+    lastEvent && lastEvent.reason != null ? lastEvent.reason : "manual";
+  return isPaused && reason === "auto";
+};
+
+/**
+ * Detects list changes and triggers auto pause when card enters a pause list,
+ * or auto resume when card leaves a pause list (only if it was auto-paused).
+ * @param {Object} t - The Trello Power-Up interface.
+ * @returns {Promise<void>}
+ */
+const checkAndHandleAutoPauseResume = async (t) => {
+  const card = await t.card("id", "idList");
+  const currentListId = card && card.idList;
+  if (!currentListId) return;
+
+  const lastListId = await t.get("card", "private", "lastListId");
+  const pauseLists = await getPauseListsConfig(t);
+  const pauseEvents = await getPauseEvents(t);
+  const isPaused = isCardPaused(pauseEvents);
+  const wasAutoPaused = isLastPauseAuto(pauseEvents);
+
+  const listChanged = lastListId !== currentListId;
+  const newListIsPauseList = isListInPauseLists(currentListId, pauseLists);
+  const oldListWasPauseList = isListInPauseLists(lastListId, pauseLists);
+
+  if (listChanged) {
+    if (newListIsPauseList && !isPaused) {
+      await savePauseEvent(t, new Date().toISOString(), null, "auto");
+    } else if (oldListWasPauseList && wasAutoPaused) {
+      await savePauseEvent(t, null, new Date().toISOString(), "manual");
+    }
+    await t.set("card", "private", "lastListId", currentListId);
+  } else if (lastListId == null) {
+    await t.set("card", "private", "lastListId", currentListId);
+  }
+};
+
+/**
+ * Toggles the pause/resume state of a card's timer (manual pause/resume).
  * @param {Object} t - The Trello Power-Up interface.
  * @returns {Promise<boolean>} The new pause state (true if paused, false if resumed).
  */
@@ -199,11 +280,11 @@ const togglePauseResume = async (t) => {
 
   if (isPaused) {
     // Resume the timer
-    await savePauseEvent(t, null, now);
+    await savePauseEvent(t, null, now, "manual");
     return false; // Now active
   } else {
-    // Pause the timer
-    await savePauseEvent(t, now, null);
+    // Pause the timer (manual)
+    await savePauseEvent(t, now, null, "manual");
     return true; // Now paused
   }
 };
@@ -514,6 +595,72 @@ if (window.location.href.includes("index.html")) {
         }
       };
 
+      /**
+       * Renders the auto-pause lists settings section (board-level config).
+       * @param {Object} t - The Trello Power-Up interface.
+       * @param {string} token - API token.
+       */
+      const renderPauseListsSettings = async (t, token) => {
+        const container = document.getElementById("pause-lists-settings");
+        if (!container) return;
+
+        const context = t.getContext();
+        const boardId = context && context.board;
+        if (!boardId) {
+          container.innerHTML = "<p>Could not load board context.</p>";
+          return;
+        }
+
+        const listsResponse = await fetch(
+          `https://api.trello.com/1/boards/${boardId}/lists?key=${APP_KEY}&token=${token}`
+        );
+        if (!listsResponse.ok) {
+          container.innerHTML =
+            "<p class=\"settings-error\">Could not load lists.</p>";
+          return;
+        }
+
+        const lists = await listsResponse.json();
+        const pauseListIds = await getPauseListsConfig(t);
+
+        let html = `
+          <h3 class="pause-lists-settings-title">Auto-pause lists</h3>
+          <p class="pause-lists-settings-desc">When a card is moved to one of these lists, the timer is automatically paused. Moving it to another list will resume the timer.</p>
+          <ul class="pause-lists-checkbox-list">
+            ${lists
+              .map(
+                (list) =>
+                  `<li class="pause-lists-checkbox-item">
+                    <label>
+                      <input type="checkbox" class="pause-list-checkbox" data-list-id="${list.id}" ${pauseListIds.includes(list.id) ? "checked" : ""}>
+                      <span>${list.name}</span>
+                    </label>
+                   </li>`
+              )
+              .join("")}
+          </ul>
+          <button type="button" id="save-pause-lists-btn" class="save-pause-lists-btn">Save</button>
+        `;
+        container.innerHTML = html;
+
+        const saveBtn = document.getElementById("save-pause-lists-btn");
+        if (saveBtn) {
+          saveBtn.addEventListener("click", async () => {
+            const checkboxes = container.querySelectorAll(
+              ".pause-list-checkbox:checked"
+            );
+            const selectedListIds = Array.from(checkboxes).map((el) =>
+              el.getAttribute("data-list-id")
+            );
+            await setPauseListsConfig(t, selectedListIds);
+            saveBtn.textContent = "Saved!";
+            setTimeout(() => {
+              saveBtn.textContent = "Save";
+            }, 2000);
+          });
+        }
+      };
+
       const token = await getAuthToken(t);
       if (!token) {
         showAuthUI();
@@ -550,6 +697,7 @@ if (window.location.href.includes("index.html")) {
       const pauseEvents = await getPauseEvents(t);
 
       renderTimeInList(history, pauseEvents, t);
+      await renderPauseListsSettings(t, token);
     } catch (error) {
       console.error("❌ Error during Power-Up Time in List execution:", error);
       document.getElementById("time-list").innerHTML =
@@ -594,6 +742,7 @@ if (window.location.href.includes("index.html")) {
       },
       "card-badges": async function (t, options) {
         try {
+          await checkAndHandleAutoPauseResume(t);
           const timeInfo = await calculateCurrentListTime(t);
 
           if (!timeInfo) {
