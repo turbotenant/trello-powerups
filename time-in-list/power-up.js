@@ -703,74 +703,6 @@ if (window.location.href.includes("settings.html")) {
         }
       };
 
-      /**
-       * Renders the auto-pause lists settings section (board-level config).
-       * @param {Object} t - The Trello Power-Up interface.
-       * @param {string} token - API token.
-       */
-      const renderPauseListsSettings = async (t, token) => {
-        const container = document.getElementById("pause-lists-settings");
-        if (!container) return;
-
-        const context = t.getContext();
-        const boardId = context && context.board;
-        if (!boardId) {
-          container.innerHTML = "<p>Could not load board context.</p>";
-          return;
-        }
-
-        const listsResponse = await fetch(
-          `https://api.trello.com/1/boards/${boardId}/lists?key=${APP_KEY}&token=${token}`
-        );
-        if (!listsResponse.ok) {
-          container.innerHTML =
-            '<p class="settings-error">Could not load lists.</p>';
-          return;
-        }
-
-        const lists = await listsResponse.json();
-        const pauseListIds = await getPauseListsConfig(t);
-
-        let html = `
-          <h3 class="pause-lists-settings-title">Auto-pause lists</h3>
-          <p class="pause-lists-settings-desc">When a card is moved to one of these lists, the timer is automatically paused. Moving it to another list will resume the timer.</p>
-          <ul class="pause-lists-checkbox-list">
-            ${lists
-              .map(
-                (list) =>
-                  `<li class="pause-lists-checkbox-item">
-                    <label>
-                      <input type="checkbox" class="pause-list-checkbox" data-list-id="${
-                        list.id
-                      }" ${pauseListIds.includes(list.id) ? "checked" : ""}>
-                      <span>${list.name}</span>
-                    </label>
-                   </li>`
-              )
-              .join("")}
-          </ul>
-          <button type="button" id="save-pause-lists-btn" class="save-pause-lists-btn">Save</button>
-        `;
-        container.innerHTML = html;
-
-        const saveBtn = document.getElementById("save-pause-lists-btn");
-        if (saveBtn) {
-          saveBtn.addEventListener("click", async () => {
-            const checkboxes = container.querySelectorAll(
-              ".pause-list-checkbox:checked"
-            );
-            const selectedListIds = Array.from(checkboxes).map((el) =>
-              el.getAttribute("data-list-id")
-            );
-            await setPauseListsConfig(t, selectedListIds);
-            saveBtn.textContent = "Saved!";
-            setTimeout(() => {
-              saveBtn.textContent = "Save";
-            }, 2000);
-          });
-        }
-      };
-
       const token = await getAuthToken(t);
       if (!token) {
         showAuthUI();
@@ -807,7 +739,6 @@ if (window.location.href.includes("settings.html")) {
       const pauseEvents = await getPauseEvents(t);
 
       renderTimeInList(history, pauseEvents, t);
-      await renderPauseListsSettings(t, token);
     } catch (error) {
       console.error("❌ Error during Power-Up Time in List execution:", error);
       document.getElementById("time-list").innerHTML =

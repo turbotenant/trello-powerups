@@ -21,9 +21,23 @@ Tracks and displays the time cards spend in each list, excluding weekends and co
 - **Time Tracking**: Automatically tracks time spent in each list
 - **Business Time Calculation**: Excludes weekends and US federal holidays
 - **Pause/Resume Functionality**: Manually pause and resume time tracking
+- **Auto-pause on list move**: Automatically pause the timer when a card is moved to configured lists, and resume when moved to another list
 - **Visual Progress Bars**: Shows relative time spent in each list
 - **Card Badges**: Displays current list time directly on cards
 - **Detailed History**: View complete movement history with time breakdowns
+
+#### Configuring auto-pause
+
+You can choose which lists automatically pause the timer when a card is moved to them (e.g. "Blocked", "On hold"). Configuration is per board and is done in the Power-Up settings:
+
+1. On your Trello board, open **Power-Ups** in the board menu.
+2. Find **Time in List** under enabled Power-Ups and open its **Settings** (gear/cog icon).
+3. In the settings page, use the **Auto-pause lists** section:
+   - Check the box next to each list that should trigger auto-pause when a card is moved into it.
+   - Leave unchecked any list where the timer should keep running.
+4. Click **Save**.
+
+After saving, moving a card **into** one of the selected lists will pause the timer automatically. Moving the card **out** of that list will resume the timer (only if it was auto-paused; manual pauses are not auto-resumed).
 
 #### Usage
 
