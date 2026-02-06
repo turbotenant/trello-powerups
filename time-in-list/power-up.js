@@ -462,7 +462,7 @@ if (window.location.href.includes("settings.html")) {
         );
         if (!listsResponse.ok) {
           container.innerHTML =
-            "<p class=\"settings-error\">Could not load lists.</p>";
+            '<p class="settings-error">Could not load lists.</p>';
           return;
         }
 
@@ -478,7 +478,9 @@ if (window.location.href.includes("settings.html")) {
                 (list) =>
                   `<li class="pause-lists-checkbox-item">
                     <label>
-                      <input type="checkbox" class="pause-list-checkbox" data-list-id="${list.id}" ${pauseListIds.includes(list.id) ? "checked" : ""}>
+                      <input type="checkbox" class="pause-list-checkbox" data-list-id="${
+                        list.id
+                      }" ${pauseListIds.includes(list.id) ? "checked" : ""}>
                       <span>${list.name}</span>
                     </label>
                    </li>`
@@ -722,7 +724,7 @@ if (window.location.href.includes("settings.html")) {
         );
         if (!listsResponse.ok) {
           container.innerHTML =
-            "<p class=\"settings-error\">Could not load lists.</p>";
+            '<p class="settings-error">Could not load lists.</p>';
           return;
         }
 
@@ -738,7 +740,9 @@ if (window.location.href.includes("settings.html")) {
                 (list) =>
                   `<li class="pause-lists-checkbox-item">
                     <label>
-                      <input type="checkbox" class="pause-list-checkbox" data-list-id="${list.id}" ${pauseListIds.includes(list.id) ? "checked" : ""}>
+                      <input type="checkbox" class="pause-list-checkbox" data-list-id="${
+                        list.id
+                      }" ${pauseListIds.includes(list.id) ? "checked" : ""}>
                       <span>${list.name}</span>
                     </label>
                    </li>`
@@ -925,6 +929,7 @@ if (window.location.href.includes("settings.html")) {
         }
       },
       "show-settings": function (t, options) {
+        // dummy
         return t.popup({
           title: "Time in List Settings",
           url: "./settings.html",
