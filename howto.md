@@ -77,7 +77,6 @@ https://turbotenant.github.io/trello-powerups/start-case/index.html
 
 Open these URLs in your browser to verify they load correctly.
 
-
 ## Updating Trello Power-Up URLs
 
 ### For New Power-Ups
@@ -86,9 +85,10 @@ Open these URLs in your browser to verify they load correctly.
 2. Click "Create new Power-Up"
 3. Fill in the details:
    - **Name**: Your Power-Up name
-   - **Iframe connector URL**: `https://turbotenant.github.io/trello-powerups/time-in-list/` Do not point to the index html
+   - **Iframe connector URL**: `https://turbotenant.github.io/trello-powerups/<your power up folder>/` Do not point to the index html
 4. Configure capabilities and save
    - It is mandatory to have at least the onEnabled one
+5. Go to flaticon site, choose an icon and ask AI to get the CDN url
 
 ### For Existing Power-Ups
 
@@ -102,5 +102,5 @@ Open these URLs in your browser to verify they load correctly.
 1. Go to [Trello Power-Ups Admin](https://trello.com/power-ups/admin)
 2. Select your Power-Up
 3. Go to API Key on the left, and generate one
-4. You can set the allowed origins as https://turbotenant.github.io
+4. You should set the allowed origins as <https://turbotenant.github.io>
 5. You need to copy this key and put in your power up project. It is needed to handle authorization and do API requests

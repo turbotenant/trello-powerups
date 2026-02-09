@@ -1,4 +1,4 @@
-/* global TrelloPowerUp, dayjs, APP_KEY, APP_NAME */
+/* global TrelloPowerUp, dayjs, APP_KEY, APP_NAME, ICON_URL */
 
 // ===== HELPER FUNCTIONS =====
 
@@ -362,6 +362,25 @@ const generateCSV = (aggregatedData) => {
     return nameA.localeCompare(nameB);
   });
 
+  // Initialize totals object
+  const totals = {
+    sizes: {},
+    daysToRelease: {},
+    onTime: 0,
+    pastDue: 0,
+    total: 0,
+  };
+
+  // Initialize totals for all size columns
+  uniqueSizes.forEach((size) => {
+    totals.sizes[size] = 0;
+  });
+
+  // Initialize totals for all days to release columns
+  uniqueDaysToRelease.forEach((days) => {
+    totals.daysToRelease[days] = 0;
+  });
+
   // Generate row for each member
   for (const memberId of memberIds) {
     const data = memberData[memberId];
@@ -371,12 +390,16 @@ const generateCSV = (aggregatedData) => {
 
     // Add size counts
     uniqueSizes.forEach((size) => {
-      row.push(escapeCSV(data.sizes[size] || 0));
+      const value = data.sizes[size] || 0;
+      row.push(escapeCSV(value));
+      totals.sizes[size] += value;
     });
 
     // Add days to release counts
     uniqueDaysToRelease.forEach((days) => {
-      row.push(escapeCSV(data.daysToRelease[days] || 0));
+      const value = data.daysToRelease[days] || 0;
+      row.push(escapeCSV(value));
+      totals.daysToRelease[days] += value;
     });
 
     // Add fixed columns
@@ -386,8 +409,35 @@ const generateCSV = (aggregatedData) => {
       escapeCSV(data.total)
     );
 
+    // Accumulate totals for fixed columns
+    totals.onTime += data.onTime;
+    totals.pastDue += data.pastDue;
+    totals.total += data.total;
+
     rows.push(row.join(","));
   }
+
+  // Add TOTALS row
+  const totalsRow = [escapeCSV("TOTALS")];
+  
+  // Add size totals
+  uniqueSizes.forEach((size) => {
+    totalsRow.push(escapeCSV(totals.sizes[size]));
+  });
+  
+  // Add days to release totals
+  uniqueDaysToRelease.forEach((days) => {
+    totalsRow.push(escapeCSV(totals.daysToRelease[days]));
+  });
+  
+  // Add fixed column totals
+  totalsRow.push(
+    escapeCSV(totals.onTime),
+    escapeCSV(totals.pastDue),
+    escapeCSV(totals.total)
+  );
+  
+  rows.push(totalsRow.join(","));
 
   return rows.join("\n");
 };
@@ -539,7 +589,7 @@ if (!isPopupContext) {
       "board-buttons": async function (t, options) {
         return [
           {
-            icon: "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
+            icon: ICON_URL,
             text: "Generate List Report",
             callback: generateReportCallback,
           },
