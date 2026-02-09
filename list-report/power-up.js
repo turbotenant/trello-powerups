@@ -91,10 +91,19 @@ const fetchWithRetry = async (fetchFn, maxRetries = 3) => {
 
     // If rate limited and we have retries left, wait and retry
     if (response.status === 429 && attempt < maxRetries) {
+      let waitTime = 5000; // Default 5 seconds
+      
+      // Try to get Retry-After header
       const retryAfter = response.headers.get("Retry-After");
-      const waitTime = retryAfter
-        ? parseInt(retryAfter, 10) * 1000
-        : Math.pow(2, attempt) * 1000; // Exponential backoff: 1s, 2s, 4s
+      if (retryAfter) {
+        const parsed = parseInt(retryAfter, 10);
+        if (!isNaN(parsed) && parsed > 0) {
+          waitTime = parsed * 1000;
+        }
+      } else {
+        // Exponential backoff: 5s, 10s, 20s
+        waitTime = Math.pow(2, attempt) * 5000;
+      }
 
       console.warn(
         `Rate limited (429). Waiting ${waitTime}ms before retry ${attempt + 1}/${maxRetries}...`,
@@ -341,11 +350,13 @@ const aggregateCardData = async (cards, listId, boardId, token) => {
 
   // STEP 1: Fetch all card data in batches to avoid rate limiting
   console.log(`Fetching data for ${cards.length} cards in batches...`);
-
-  // Process in batches of 15 to avoid rate limits (Trello allows ~300 requests per 10 seconds)
-  // Each card makes 2 requests (actions + custom fields), so 15 cards = 30 requests per batch
-  const BATCH_SIZE = 15;
-  const DELAY_BETWEEN_BATCHES = 200; // 200ms delay between batches to be safe
+  
+  // Process in smaller batches to avoid rate limits
+  // Trello allows ~300 requests per 10 seconds, but we'll be conservative
+  // Each card makes 2 requests (actions + custom fields)
+  const BATCH_SIZE = 10; // Reduced to 10 cards = 20 requests per batch
+  const DELAY_BETWEEN_BATCHES = 1000; // 1 second delay between batches
+  const DELAY_BETWEEN_REQUESTS = 50; // 50ms delay between requests within a batch
 
   const cardDataResults = [];
 
@@ -355,20 +366,29 @@ const aggregateCardData = async (cards, listId, boardId, token) => {
       `Processing batch ${Math.floor(i / BATCH_SIZE) + 1} of ${Math.ceil(cards.length / BATCH_SIZE)} (${batch.length} cards)...`,
     );
 
-    const batchPromises = batch.map(async (card) => {
+    // Process cards sequentially within batch to avoid overwhelming the API
+    const batchResults = [];
+    for (let j = 0; j < batch.length; j++) {
+      const card = batch[j];
+      
+      // Fetch both requests for this card in parallel
       const [actions, cardCustomFields] = await Promise.all([
         fetchCardActions(card.id, token),
         fetchCardCustomFields(card.id, token),
       ]);
-
-      return {
+      
+      batchResults.push({
         card,
         actions,
         cardCustomFields,
-      };
-    });
+      });
+      
+      // Small delay between cards in the same batch (except last card)
+      if (j < batch.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_REQUESTS));
+      }
+    }
 
-    const batchResults = await Promise.all(batchPromises);
     cardDataResults.push(...batchResults);
 
     // Add delay between batches (except for the last batch)
