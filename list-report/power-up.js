@@ -75,14 +75,48 @@ const fetchListCards = async (listId, token) => {
 };
 
 /**
+ * Retries a fetch request with exponential backoff on rate limit errors.
+ * @param {Function} fetchFn - Function that returns a fetch promise.
+ * @param {number} maxRetries - Maximum number of retries.
+ * @returns {Promise<Response>} The fetch response.
+ */
+const fetchWithRetry = async (fetchFn, maxRetries = 3) => {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const response = await fetchFn();
+    
+    // If successful or not a rate limit error, return immediately
+    if (response.ok || response.status !== 429) {
+      return response;
+    }
+    
+    // If rate limited and we have retries left, wait and retry
+    if (response.status === 429 && attempt < maxRetries) {
+      const retryAfter = response.headers.get('Retry-After');
+      const waitTime = retryAfter 
+        ? parseInt(retryAfter, 10) * 1000 
+        : Math.pow(2, attempt) * 1000; // Exponential backoff: 1s, 2s, 4s
+      
+      console.warn(`Rate limited (429). Waiting ${waitTime}ms before retry ${attempt + 1}/${maxRetries}...`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+      continue;
+    }
+    
+    // If no retries left or other error, throw
+    throw new Error(`Failed to fetch: ${response.status}`);
+  }
+};
+
+/**
  * Fetches card actions to determine when it entered the list.
  * @param {string} cardId - The card ID.
  * @param {string} token - API token.
  * @returns {Promise<Array>} Array of card actions.
  */
 const fetchCardActions = async (cardId, token) => {
-  const response = await fetch(
-    `https://api.trello.com/1/cards/${cardId}/actions?filter=updateCard:idList,createCard&key=${APP_KEY}&token=${token}`
+  const response = await fetchWithRetry(() =>
+    fetch(
+      `https://api.trello.com/1/cards/${cardId}/actions?filter=updateCard:idList,createCard&key=${APP_KEY}&token=${token}`
+    )
   );
 
   if (!response.ok) {
@@ -99,15 +133,23 @@ const fetchCardActions = async (cardId, token) => {
  * @returns {Promise<Array>} Array of custom field items.
  */
 const fetchCardCustomFields = async (cardId, token) => {
-  const response = await fetch(
-    `https://api.trello.com/1/cards/${cardId}/customFieldItems?key=${APP_KEY}&token=${token}`
+  // Fetch custom field items with full value details
+  const response = await fetchWithRetry(() =>
+    fetch(
+      `https://api.trello.com/1/cards/${cardId}/customFieldItems?key=${APP_KEY}&token=${token}`
+    )
   );
 
   if (!response.ok) {
     throw new Error(`Failed to fetch custom fields: ${response.status}`);
   }
 
-  return await response.json();
+  const items = await response.json();
+  
+  // For items with idValue but null value, try to get the option details
+  // Note: Trello API should return value.option for dropdowns, but if not,
+  // we'll handle it in getCustomFieldValue using the field definition
+  return items;
 };
 
 /**
@@ -117,6 +159,7 @@ const fetchCardCustomFields = async (cardId, token) => {
  * @returns {Promise<Array>} Array of custom field definitions.
  */
 const fetchBoardCustomFields = async (boardId, token) => {
+  // Fetch custom fields - the API should include options for dropdown fields
   const response = await fetch(
     `https://api.trello.com/1/boards/${boardId}/customFields?key=${APP_KEY}&token=${token}`
   );
@@ -150,26 +193,65 @@ const fetchMember = async (memberId, token) => {
  * Extracts custom field value from card custom fields.
  * @param {Array} cardCustomFields - Array of custom field items from the card.
  * @param {string} customFieldId - The custom field ID to find.
+ * @param {Object} fieldDefinition - Optional custom field definition to resolve option values.
  * @returns {string|null} The custom field value or null if not found.
  */
-const getCustomFieldValue = (cardCustomFields, customFieldId) => {
+const getCustomFieldValue = (cardCustomFields, customFieldId, fieldDefinition = null) => {
   const fieldItem = cardCustomFields.find(
     (item) => item.idCustomField === customFieldId
   );
 
-  if (!fieldItem || !fieldItem.value) {
+  if (!fieldItem) {
     return null;
   }
 
   // Handle different custom field types
-  if (fieldItem.value.number !== undefined) {
+  // Number field
+  if (fieldItem.value && fieldItem.value.number !== undefined && fieldItem.value.number !== null) {
     return String(fieldItem.value.number);
   }
-  if (fieldItem.value.text !== undefined) {
+  
+  // Text field
+  if (fieldItem.value && fieldItem.value.text !== undefined && fieldItem.value.text !== null) {
     return fieldItem.value.text;
   }
-  if (fieldItem.value.option) {
-    return fieldItem.value.option.value.text || fieldItem.value.option.value.name;
+  
+  // Option/dropdown field - handle different structures
+  if (fieldItem.value && fieldItem.value.option) {
+    const option = fieldItem.value.option;
+    // Try different possible structures
+    if (option.value) {
+      return option.value.text || option.value.name || option.value;
+    }
+    if (option.text) {
+      return option.text;
+    }
+    if (option.name) {
+      return option.name;
+    }
+    if (option.id && fieldDefinition && fieldDefinition.options) {
+      // Look up option by ID in field definition
+      const optionDef = fieldDefinition.options.find(opt => opt.id === option.id);
+      if (optionDef) {
+        return optionDef.value.text || optionDef.value.name || optionDef.value;
+      }
+    }
+    return option.id || null;
+  }
+
+  // Special case: value is null but idValue exists (dropdown field with value set)
+  // This happens when Trello returns the field item but value needs to be resolved
+  if (!fieldItem.value && fieldItem.idValue && fieldDefinition && fieldDefinition.options) {
+    // Look up the option by idValue in the field definition
+    const optionDef = fieldDefinition.options.find(opt => opt.id === fieldItem.idValue);
+    if (optionDef) {
+      return optionDef.value.text || optionDef.value.name || optionDef.value;
+    }
+  }
+
+  // Check if value itself is a string/number (fallback)
+  if (fieldItem.value && (typeof fieldItem.value === 'string' || typeof fieldItem.value === 'number')) {
+    return String(fieldItem.value);
   }
 
   return null;
@@ -213,35 +295,101 @@ const aggregateCardData = async (cards, listId, boardId, token) => {
 
   // Initialize member data structure
   const memberData = {};
-  const memberNames = {};
+  const memberNames = new Map(); // Use Map for faster lookups
   const uniqueSizes = new Set();
   const uniqueDaysToRelease = new Set();
 
-  // Process each card
-  for (const card of cards) {
-    // Fetch card actions to get list entry date
-    const actions = await fetchCardActions(card.id, token);
+  // STEP 1: Fetch all card data in batches to avoid rate limiting
+  console.log(`Fetching data for ${cards.length} cards in batches...`);
+  
+  // Process in batches of 15 to avoid rate limits (Trello allows ~300 requests per 10 seconds)
+  // Each card makes 2 requests (actions + custom fields), so 15 cards = 30 requests per batch
+  const BATCH_SIZE = 15;
+  const DELAY_BETWEEN_BATCHES = 200; // 200ms delay between batches to be safe
+  
+  const cardDataResults = [];
+  
+  for (let i = 0; i < cards.length; i += BATCH_SIZE) {
+    const batch = cards.slice(i, i + BATCH_SIZE);
+    console.log(`Processing batch ${Math.floor(i / BATCH_SIZE) + 1} of ${Math.ceil(cards.length / BATCH_SIZE)} (${batch.length} cards)...`);
+    
+    const batchPromises = batch.map(async (card) => {
+      const [actions, cardCustomFields] = await Promise.all([
+        fetchCardActions(card.id, token),
+        fetchCardCustomFields(card.id, token),
+      ]);
+      
+      return {
+        card,
+        actions,
+        cardCustomFields,
+      };
+    });
+    
+    const batchResults = await Promise.all(batchPromises);
+    cardDataResults.push(...batchResults);
+    
+    // Add delay between batches (except for the last batch)
+    if (i + BATCH_SIZE < cards.length) {
+      await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES));
+    }
+  }
+  
+  console.log("All card data fetched, processing...");
+
+  // STEP 2: Collect all unique member IDs first
+  const allMemberIds = new Set();
+  for (const { card } of cardDataResults) {
+    const memberIds = card.idMembers || [];
+    memberIds.forEach(id => allMemberIds.add(id));
+  }
+
+  // STEP 3: Fetch all members in parallel
+  console.log(`Fetching ${allMemberIds.size} members in parallel...`);
+  const memberPromises = Array.from(allMemberIds).map(async (memberId) => {
+    try {
+      const member = await fetchMember(memberId, token);
+      return { memberId, name: member.fullName || member.username };
+    } catch (error) {
+      console.error(`Error fetching member ${memberId}:`, error);
+      return { memberId, name: `Member ${memberId}` };
+    }
+  });
+
+  const memberResults = await Promise.all(memberPromises);
+  memberResults.forEach(({ memberId, name }) => {
+    memberNames.set(memberId, name);
+  });
+  console.log("All members fetched, aggregating data...");
+
+  // STEP 4: Process all cards (now all data is in memory)
+  for (const { card, actions, cardCustomFields } of cardDataResults) {
     const listEntryDate = getCardListEntryDate(actions, card.id, listId);
 
-    // Fetch custom fields
-    const cardCustomFields = await fetchCardCustomFields(card.id, token);
     const sizeValue = sizeField
-      ? getCustomFieldValue(cardCustomFields, sizeField.id)
+      ? getCustomFieldValue(cardCustomFields, sizeField.id, sizeField)
       : null;
     const daysToReleaseValue = daysToReleaseField
-      ? getCustomFieldValue(cardCustomFields, daysToReleaseField.id)
+      ? getCustomFieldValue(cardCustomFields, daysToReleaseField.id, daysToReleaseField)
       : null;
 
-    // Debug logging for first card
-    if (cards.indexOf(card) === 0) {
-      console.log("First card custom fields:", cardCustomFields);
-      console.log("Size field ID:", sizeField?.id);
-      console.log("Size value extracted:", sizeValue);
+    // Debug logging for first few cards with Size field
+    const cardIndex = cardDataResults.findIndex(r => r.card.id === card.id);
+    if (cardIndex < 3 && sizeField) {
+      const sizeFieldItem = cardCustomFields.find(
+        item => item.idCustomField === sizeField.id
+      );
+      console.log(`Card ${cardIndex + 1} - Size field item:`, JSON.stringify(sizeFieldItem, null, 2));
+      console.log(`Card ${cardIndex + 1} - Size value extracted:`, sizeValue);
+      if (sizeFieldItem && sizeFieldItem.value) {
+        console.log(`Card ${cardIndex + 1} - Raw value structure:`, JSON.stringify(sizeFieldItem.value, null, 2));
+      }
     }
 
     // Track unique values
     if (sizeValue) {
       uniqueSizes.add(sizeValue);
+      console.log(`Card "${card.name}" has Size value:`, sizeValue);
     }
     if (daysToReleaseValue) {
       uniqueDaysToRelease.add(daysToReleaseValue);
@@ -298,17 +446,6 @@ const aggregateCardData = async (cards, listId, boardId, token) => {
           };
         }
 
-        // Fetch member name if not already cached
-        if (!memberNames[memberId]) {
-          try {
-            const member = await fetchMember(memberId, token);
-            memberNames[memberId] = member.fullName || member.username;
-          } catch (error) {
-            console.error(`Error fetching member ${memberId}:`, error);
-            memberNames[memberId] = `Member ${memberId}`;
-          }
-        }
-
         memberData[memberId].total++;
         if (sizeValue) {
           memberData[memberId].sizes[sizeValue] =
@@ -328,9 +465,22 @@ const aggregateCardData = async (cards, listId, boardId, token) => {
     }
   }
 
+  // Convert Map to object for compatibility
+  const memberNamesObj = {};
+  memberNames.forEach((name, id) => {
+    memberNamesObj[id] = name;
+  });
+
+  // Summary logging
+  console.log("=== Aggregation Summary ===");
+  console.log("Unique Sizes found:", Array.from(uniqueSizes));
+  console.log("Unique Days to Release found:", Array.from(uniqueDaysToRelease));
+  console.log("Total members:", Object.keys(memberData).length);
+  console.log("Total cards processed:", cards.length);
+
   return {
     memberData,
-    memberNames,
+    memberNames: memberNamesObj,
     uniqueSizes: Array.from(uniqueSizes).sort(),
     uniqueDaysToRelease: Array.from(uniqueDaysToRelease).sort(),
   };
