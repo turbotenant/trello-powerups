@@ -92,7 +92,7 @@ const fetchWithRetry = async (fetchFn, maxRetries = 3) => {
     // If rate limited and we have retries left, wait and retry
     if (response.status === 429 && attempt < maxRetries) {
       let waitTime = 5000; // Default 5 seconds
-      
+
       // Try to get Retry-After header
       const retryAfter = response.headers.get("Retry-After");
       if (retryAfter) {
@@ -350,13 +350,14 @@ const aggregateCardData = async (cards, listId, boardId, token) => {
 
   // STEP 1: Fetch all card data in batches to avoid rate limiting
   console.log(`Fetching data for ${cards.length} cards in batches...`);
-  
-  // Process in smaller batches to avoid rate limits
-  // Trello allows ~300 requests per 10 seconds, but we'll be conservative
+
+  // Process in batches to respect Trello API rate limits
+  // Trello limits: 100 requests per 10 seconds per token (most restrictive)
   // Each card makes 2 requests (actions + custom fields)
-  const BATCH_SIZE = 10; // Reduced to 10 cards = 20 requests per batch
-  const DELAY_BETWEEN_BATCHES = 1000; // 1 second delay between batches
-  const DELAY_BETWEEN_REQUESTS = 50; // 50ms delay between requests within a batch
+  // Using 150ms between requests = ~6.67 req/sec = ~67 requests per 10 seconds (safe buffer)
+  const BATCH_SIZE = 10; // 10 cards = 20 requests per batch
+  const DELAY_BETWEEN_BATCHES = 500; // 500ms delay between batches (optimized for speed while staying safe)
+  const DELAY_BETWEEN_REQUESTS = 150; // 150ms delay between cards (safe: ~6.67 req/sec, well under 10 req/sec limit)
 
   const cardDataResults = [];
 
@@ -370,22 +371,24 @@ const aggregateCardData = async (cards, listId, boardId, token) => {
     const batchResults = [];
     for (let j = 0; j < batch.length; j++) {
       const card = batch[j];
-      
+
       // Fetch both requests for this card in parallel
       const [actions, cardCustomFields] = await Promise.all([
         fetchCardActions(card.id, token),
         fetchCardCustomFields(card.id, token),
       ]);
-      
+
       batchResults.push({
         card,
         actions,
         cardCustomFields,
       });
-      
+
       // Small delay between cards in the same batch (except last card)
       if (j < batch.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_REQUESTS));
+        await new Promise((resolve) =>
+          setTimeout(resolve, DELAY_BETWEEN_REQUESTS),
+        );
       }
     }
 
@@ -460,13 +463,19 @@ const aggregateCardData = async (cards, listId, boardId, token) => {
       }
     }
 
-    // Track unique values
+    // Track unique values (including "No Size" and "No Days to Release")
     if (sizeValue) {
       uniqueSizes.add(sizeValue);
       console.log(`Card "${card.name}" has Size value:`, sizeValue);
+    } else if (sizeField) {
+      // Always track "No Size" if Size field exists on board
+      uniqueSizes.add("No Size");
     }
     if (daysToReleaseValue) {
       uniqueDaysToRelease.add(daysToReleaseValue);
+    } else if (daysToReleaseField) {
+      // Always track "No Days to Release" if Days to Release field exists on board
+      uniqueDaysToRelease.add("No Days to Release");
     }
 
     // Determine on-time status
@@ -496,10 +505,18 @@ const aggregateCardData = async (cards, listId, boardId, token) => {
       if (sizeValue) {
         memberData["unassigned"].sizes[sizeValue] =
           (memberData["unassigned"].sizes[sizeValue] || 0) + 1;
+      } else if (sizeField) {
+        // Track cards without Size value
+        memberData["unassigned"].sizes["No Size"] =
+          (memberData["unassigned"].sizes["No Size"] || 0) + 1;
       }
       if (daysToReleaseValue) {
         memberData["unassigned"].daysToRelease[daysToReleaseValue] =
           (memberData["unassigned"].daysToRelease[daysToReleaseValue] || 0) + 1;
+      } else if (daysToReleaseField) {
+        // Track cards without Days to Release value
+        memberData["unassigned"].daysToRelease["No Days to Release"] =
+          (memberData["unassigned"].daysToRelease["No Days to Release"] || 0) + 1;
       }
       if (isOnTime) {
         memberData["unassigned"].onTime++;
@@ -524,10 +541,18 @@ const aggregateCardData = async (cards, listId, boardId, token) => {
         if (sizeValue) {
           memberData[memberId].sizes[sizeValue] =
             (memberData[memberId].sizes[sizeValue] || 0) + 1;
+        } else if (sizeField) {
+          // Track cards without Size value
+          memberData[memberId].sizes["No Size"] =
+            (memberData[memberId].sizes["No Size"] || 0) + 1;
         }
         if (daysToReleaseValue) {
           memberData[memberId].daysToRelease[daysToReleaseValue] =
             (memberData[memberId].daysToRelease[daysToReleaseValue] || 0) + 1;
+        } else if (daysToReleaseField) {
+          // Track cards without Days to Release value
+          memberData[memberId].daysToRelease["No Days to Release"] =
+            (memberData[memberId].daysToRelease["No Days to Release"] || 0) + 1;
         }
         if (isOnTime) {
           memberData[memberId].onTime++;
@@ -552,11 +577,24 @@ const aggregateCardData = async (cards, listId, boardId, token) => {
   console.log("Total members:", Object.keys(memberData).length);
   console.log("Total cards processed:", cards.length);
 
+  // Sort unique values, putting "No Size" and "No Days to Release" at the end
+  const sortedSizes = Array.from(uniqueSizes).sort((a, b) => {
+    if (a === "No Size") return 1;
+    if (b === "No Size") return -1;
+    return a.localeCompare(b);
+  });
+  
+  const sortedDaysToRelease = Array.from(uniqueDaysToRelease).sort((a, b) => {
+    if (a === "No Days to Release") return 1;
+    if (b === "No Days to Release") return -1;
+    return a.localeCompare(b);
+  });
+
   return {
     memberData,
     memberNames: memberNamesObj,
-    uniqueSizes: Array.from(uniqueSizes).sort(),
-    uniqueDaysToRelease: Array.from(uniqueDaysToRelease).sort(),
+    uniqueSizes: sortedSizes,
+    uniqueDaysToRelease: sortedDaysToRelease,
   };
 };
 
@@ -591,17 +629,21 @@ const generateCSV = (aggregatedData) => {
 
   // Build header row
   const header = ["Member"];
-
+  
   // Add size columns
   uniqueSizes.forEach((size) => {
-    header.push(`Size ${size}`);
+    // Use consistent naming - "No Size" stays as is, others get "Size " prefix
+    const columnName = size === "No Size" ? "No Size" : `Size ${size}`;
+    header.push(columnName);
   });
-
+  
   // Add days to release columns
   uniqueDaysToRelease.forEach((days) => {
-    header.push(`Days to Release ${days}`);
+    // Use consistent naming - "No Days to Release" stays as is, others get "Days to Release " prefix
+    const columnName = days === "No Days to Release" ? "No Days to Release" : `Days to Release ${days}`;
+    header.push(columnName);
   });
-
+  
   // Add fixed columns
   header.push("On Time", "Past Due", "Total Cards");
 
@@ -626,12 +668,12 @@ const generateCSV = (aggregatedData) => {
     total: 0,
   };
 
-  // Initialize totals for all size columns
+  // Initialize totals for all size columns (including "No Size")
   uniqueSizes.forEach((size) => {
     totals.sizes[size] = 0;
   });
 
-  // Initialize totals for all days to release columns
+  // Initialize totals for all days to release columns (including "No Days to Release")
   uniqueDaysToRelease.forEach((days) => {
     totals.daysToRelease[days] = 0;
   });
@@ -650,14 +692,14 @@ const generateCSV = (aggregatedData) => {
     uniqueSizes.forEach((size) => {
       const value = data.sizes[size] || 0;
       row.push(escapeCSV(value));
-      totals.sizes[size] += value;
+      totals.sizes[size] = (totals.sizes[size] || 0) + value;
     });
 
     // Add days to release counts
     uniqueDaysToRelease.forEach((days) => {
       const value = data.daysToRelease[days] || 0;
       row.push(escapeCSV(value));
-      totals.daysToRelease[days] += value;
+      totals.daysToRelease[days] = (totals.daysToRelease[days] || 0) + value;
     });
 
     // Add fixed columns
