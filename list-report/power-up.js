@@ -186,10 +186,30 @@ const getCustomFieldValue = (cardCustomFields, customFieldId) => {
 const aggregateCardData = async (cards, listId, boardId, token) => {
   // Fetch custom field definitions
   const customFields = await fetchBoardCustomFields(boardId, token);
+  
+  // Log available custom fields for debugging
+  console.log("Available custom fields:", customFields.map(f => f.name));
+  
+  // Find custom fields (case-insensitive, trim whitespace)
   const daysToReleaseField = customFields.find(
-    (field) => field.name === "Days to Release"
+    (field) => field.name.trim().toLowerCase() === "days to release"
   );
-  const sizeField = customFields.find((field) => field.name === "Size");
+  const sizeField = customFields.find(
+    (field) => field.name.trim().toLowerCase() === "size"
+  );
+  
+  // Log found fields for debugging
+  if (sizeField) {
+    console.log("Found Size field:", sizeField.name, sizeField.id);
+  } else {
+    console.warn("Size field not found. Available fields:", customFields.map(f => f.name));
+  }
+  
+  if (daysToReleaseField) {
+    console.log("Found Days to Release field:", daysToReleaseField.name, daysToReleaseField.id);
+  } else {
+    console.log("Days to Release field not found (this is OK if not used on this board)");
+  }
 
   // Initialize member data structure
   const memberData = {};
@@ -211,6 +231,13 @@ const aggregateCardData = async (cards, listId, boardId, token) => {
     const daysToReleaseValue = daysToReleaseField
       ? getCustomFieldValue(cardCustomFields, daysToReleaseField.id)
       : null;
+
+    // Debug logging for first card
+    if (cards.indexOf(card) === 0) {
+      console.log("First card custom fields:", cardCustomFields);
+      console.log("Size field ID:", sizeField?.id);
+      console.log("Size value extracted:", sizeValue);
+    }
 
     // Track unique values
     if (sizeValue) {
@@ -439,7 +466,9 @@ const generateCSV = (aggregatedData) => {
   
   rows.push(totalsRow.join(","));
 
-  return rows.join("\n");
+  const csvContent = rows.join("\n");
+  console.log("CSV generated with TOTALS row:", csvContent.split("\n").slice(-2)); // Log last 2 rows for debugging
+  return csvContent;
 };
 
 /**
