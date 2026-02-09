@@ -1,2 +1,3 @@
-const APP_KEY = "5b7f72d0ec09245c111f292df1b0e1e2";
-const APP_NAME = "List Report";
+const APP_KEY = "f583659eec153297d82610f3b624b731";
+const APP_NAME = "Case List Report";
+const ICON_URL = "https://cdn-icons-png.flaticon.com/512/3029/3029337.png";
