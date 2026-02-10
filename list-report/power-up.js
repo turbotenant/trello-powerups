@@ -1,10 +1,10 @@
 /* global TrelloPowerUp, dayjs, APP_KEY, APP_NAME, ICON_URL, VERSION, USE_SINGLE_CARD_FETCH */
 
 //  === DEBUG LOGGING ===
-console.log("🚀 Power-Up List Report script loaded!");
-console.log("📍 Current URL List Report:", window.location.href);
-console.log("🔍 TrelloPowerUp available List Report:", typeof TrelloPowerUp);
-console.log("🔍 List Report Version:", VERSION);
+// console.log("🚀 Power-Up List Report script loaded!");
+// console.log("📍 Current URL List Report:", window.location.href);
+// console.log("🔍 TrelloPowerUp available List Report:", typeof TrelloPowerUp);
+// console.log("🔍 List Report Version:", VERSION);
 // === END DEBUG ===
 
 /**
@@ -357,11 +357,11 @@ const DELAY_BETWEEN_CARDS_SINGLE = 120;
  */
 const fetchCardDataBatched = async (cards, token) => {
   const cardDataResults = [];
-  console.log("Fetching card data in batches...", {
-    BATCH_SIZE,
-    DELAY_BETWEEN_BATCHES,
-    DELAY_BETWEEN_REQUESTS,
-  });
+  // console.log("Fetching card data in batches...", {
+  //   BATCH_SIZE,
+  //   DELAY_BETWEEN_BATCHES,
+  //   DELAY_BETWEEN_REQUESTS,
+  // });
 
   for (let i = 0; i < cards.length; i += BATCH_SIZE) {
     const batch = cards.slice(i, i + BATCH_SIZE);
@@ -452,10 +452,10 @@ const aggregateCardData = async (cards, listId, boardId, token) => {
   const customFields = await fetchBoardCustomFields(boardId, token);
 
   // Log available custom fields for debugging
-  console.log(
-    "Available custom fields:",
-    customFields.map((f) => f.name),
-  );
+  // console.log(
+  //   "Available custom fields:",
+  //   customFields.map((f) => f.name),
+  // );
 
   // Find custom fields (case-insensitive, trim whitespace)
   const daysToReleaseField = customFields.find(
@@ -466,26 +466,26 @@ const aggregateCardData = async (cards, listId, boardId, token) => {
   );
 
   // Log found fields for debugging
-  if (sizeField) {
-    console.log("Found Size field:", sizeField.name, sizeField.id);
-  } else {
-    console.warn(
-      "Size field not found. Available fields:",
-      customFields.map((f) => f.name),
-    );
-  }
+  // if (sizeField) {
+  //   console.log("Found Size field:", sizeField.name, sizeField.id);
+  // } else {
+  //   console.warn(
+  //     "Size field not found. Available fields:",
+  //     customFields.map((f) => f.name),
+  //   );
+  // }
 
-  if (daysToReleaseField) {
-    console.log(
-      "Found Days to Release field:",
-      daysToReleaseField.name,
-      daysToReleaseField.id,
-    );
-  } else {
-    console.log(
-      "Days to Release field not found (this is OK if not used on this board)",
-    );
-  }
+  // if (daysToReleaseField) {
+  //   console.log(
+  //     "Found Days to Release field:",
+  //     daysToReleaseField.name,
+  //     daysToReleaseField.id,
+  //   );
+  // } else {
+  //   console.log(
+  //     "Days to Release field not found (this is OK if not used on this board)",
+  //   );
+  // }
 
   // Initialize member data structure
   const memberData = {};
@@ -494,14 +494,14 @@ const aggregateCardData = async (cards, listId, boardId, token) => {
   const uniqueDaysToRelease = new Set();
 
   // STEP 1: Fetch all card data (single-card or batched based on flag)
-  console.log(
-    `Fetching data for ${cards.length} cards (mode: ${USE_SINGLE_CARD_FETCH ? "single-card" : "batched"})...`,
-  );
+  // console.log(
+  //   `Fetching data for ${cards.length} cards (mode: ${USE_SINGLE_CARD_FETCH ? "single-card" : "batched"})...`,
+  // );
   const cardDataResults = USE_SINGLE_CARD_FETCH
     ? await fetchCardDataSingleCard(cards, token)
     : await fetchCardDataBatched(cards, token);
 
-  console.log("All card data fetched, processing...");
+  // console.log("All card data fetched, processing...");
 
   // STEP 2: Collect all unique member IDs first
   const allMemberIds = new Set();
@@ -511,7 +511,7 @@ const aggregateCardData = async (cards, listId, boardId, token) => {
   }
 
   // STEP 3: Fetch all members in parallel
-  console.log(`Fetching ${allMemberIds.size} members in parallel...`);
+  // console.log(`Fetching ${allMemberIds.size} members in parallel...`);
   const memberPromises = Array.from(allMemberIds).map(async (memberId) => {
     try {
       const member = await fetchMember(memberId, token);
@@ -526,7 +526,7 @@ const aggregateCardData = async (cards, listId, boardId, token) => {
   memberResults.forEach(({ memberId, name }) => {
     memberNames.set(memberId, name);
   });
-  console.log("All members fetched, aggregating data...");
+  // console.log("All members fetched, aggregating data...");
 
   // STEP 4: Process all cards (now all data is in memory)
   for (const { card, actions, cardCustomFields } of cardDataResults) {
@@ -549,23 +549,23 @@ const aggregateCardData = async (cards, listId, boardId, token) => {
       const sizeFieldItem = cardCustomFields.find(
         (item) => item.idCustomField === sizeField.id,
       );
-      console.log(
-        `Card ${cardIndex + 1} - Size field item:`,
-        JSON.stringify(sizeFieldItem, null, 2),
-      );
-      console.log(`Card ${cardIndex + 1} - Size value extracted:`, sizeValue);
-      if (sizeFieldItem && sizeFieldItem.value) {
-        console.log(
-          `Card ${cardIndex + 1} - Raw value structure:`,
-          JSON.stringify(sizeFieldItem.value, null, 2),
-        );
-      }
+      // console.log(
+      //   `Card ${cardIndex + 1} - Size field item:`,
+      //   JSON.stringify(sizeFieldItem, null, 2),
+      // );
+      // console.log(`Card ${cardIndex + 1} - Size value extracted:`, sizeValue);
+      // if (sizeFieldItem && sizeFieldItem.value) {
+      //   console.log(
+      //     `Card ${cardIndex + 1} - Raw value structure:`,
+      //     JSON.stringify(sizeFieldItem.value, null, 2),
+      //   );
+      // }
     }
 
     // Track unique values (including "No Size" and "No Days to Release")
     if (sizeValue) {
       uniqueSizes.add(sizeValue);
-      console.log(`Card "${card.name}" has Size value:`, sizeValue);
+      // console.log(`Card "${card.name}" has Size value:`, sizeValue);
     } else if (sizeField) {
       // Always track "No Size" if Size field exists on board
       uniqueSizes.add("No Size");
@@ -1025,5 +1025,5 @@ if (!isPopupContext) {
     },
   );
 
-  console.log("✨ Power-Up List Report initialization complete");
+  // console.log("✨ Power-Up List Report initialization complete");
 }
