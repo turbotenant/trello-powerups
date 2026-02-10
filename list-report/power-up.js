@@ -1,4 +1,4 @@
-/* global TrelloPowerUp, dayjs, APP_KEY, APP_NAME, ICON_URL, VERSION */
+/* global TrelloPowerUp, dayjs, APP_KEY, APP_NAME, ICON_URL, VERSION, USE_SINGLE_CARD_FETCH */
 
 //  === DEBUG LOGGING ===
 console.log("🚀 Power-Up List Report script loaded!");
@@ -112,7 +112,18 @@ const fetchListCards = async (listId, token) => {
  */
 const fetchWithRetry = async (fetchFn, maxRetries = 3) => {
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    const response = await fetchFn();
+    let response;
+    try {
+      response = await fetchFn();
+    } catch (err) {
+      console.error("List Report fetch error (network/rejection):", {
+        message: err.message,
+        name: err.name,
+        cause: err.cause,
+        stack: err.stack,
+      });
+      throw new Error(`Network error: ${err.message}`);
+    }
 
     // If successful or not a rate limit error, return immediately
     if (response.ok || response.status !== 429) {
@@ -332,6 +343,100 @@ const getCustomFieldValue = (
   return null;
 };
 
+/** Delay constants for batched fetch (used only when USE_SINGLE_CARD_FETCH is false). */
+const BATCH_SIZE = 20;
+const DELAY_BETWEEN_BATCHES = 300;
+const DELAY_BETWEEN_REQUESTS = 150;
+const DELAY_BETWEEN_CARDS_SINGLE = 120;
+
+/**
+ * Fetches actions and custom fields for all cards in batches.
+ * @param {Array} cards - Array of card objects.
+ * @param {string} token - API token.
+ * @returns {Promise<Array<{card: Object, actions: Array, cardCustomFields: Array}>>}
+ */
+const fetchCardDataBatched = async (cards, token) => {
+  const cardDataResults = [];
+  console.log("Fetching card data in batches...", {
+    BATCH_SIZE,
+    DELAY_BETWEEN_BATCHES,
+    DELAY_BETWEEN_REQUESTS,
+  });
+
+  for (let i = 0; i < cards.length; i += BATCH_SIZE) {
+    const batch = cards.slice(i, i + BATCH_SIZE);
+    console.log(
+      `Processing batch ${Math.floor(i / BATCH_SIZE) + 1} of ${Math.ceil(cards.length / BATCH_SIZE)} (${batch.length} cards)...`,
+    );
+
+    const batchResults = [];
+    for (let j = 0; j < batch.length; j++) {
+      const card = batch[j];
+      try {
+        const [actions, cardCustomFields] = await Promise.all([
+          fetchCardActions(card.id, token),
+          fetchCardCustomFields(card.id, token),
+        ]);
+        batchResults.push({ card, actions, cardCustomFields });
+      } catch (err) {
+        console.error(
+          `Card fetch failed: id=${card.id}, name=${card.name || "(no name)"}`,
+          err,
+        );
+        throw new Error(
+          `Card ${card.id} (${card.name || "unnamed"}): ${err.message}`,
+        );
+      }
+
+      if (j < batch.length - 1) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, DELAY_BETWEEN_REQUESTS),
+        );
+      }
+    }
+
+    cardDataResults.push(...batchResults);
+
+    if (i + BATCH_SIZE < cards.length) {
+      await new Promise((resolve) =>
+        setTimeout(resolve, DELAY_BETWEEN_BATCHES),
+      );
+    }
+  }
+
+  return cardDataResults;
+};
+
+/**
+ * Fetches actions and custom fields for all cards one card at a time.
+ * @param {Array} cards - Array of card objects.
+ * @param {string} token - API token.
+ * @returns {Promise<Array<{card: Object, actions: Array, cardCustomFields: Array}>>}
+ */
+const fetchCardDataSingleCard = async (cards, token) => {
+  const cardDataResults = [];
+  console.log(
+    `Fetching card data one card at a time (${cards.length} cards, ${DELAY_BETWEEN_CARDS_SINGLE}ms delay)...`,
+  );
+
+  for (let i = 0; i < cards.length; i++) {
+    const card = cards[i];
+    const [actions, cardCustomFields] = await Promise.all([
+      fetchCardActions(card.id, token),
+      fetchCardCustomFields(card.id, token),
+    ]);
+    cardDataResults.push({ card, actions, cardCustomFields });
+
+    if (i < cards.length - 1) {
+      await new Promise((resolve) =>
+        setTimeout(resolve, DELAY_BETWEEN_CARDS_SINGLE),
+      );
+    }
+  }
+
+  return cardDataResults;
+};
+
 /**
  * Processes cards and aggregates data by member.
  * On Time / Past Due: Based on when the card was marked complete (dueComplete) vs due date;
@@ -388,65 +493,13 @@ const aggregateCardData = async (cards, listId, boardId, token) => {
   const uniqueSizes = new Set();
   const uniqueDaysToRelease = new Set();
 
-  // STEP 1: Fetch all card data in batches to avoid rate limiting
-  console.log(`Fetching data for ${cards.length} cards in batches...`);
-
-  // Process in batches to respect Trello API rate limits
-  // Trello limits: 100 requests per 10 seconds per token (most restrictive)
-  // Each card makes 2 requests (actions + custom fields)
-  // Using 150ms between requests = ~6.67 req/sec = ~67 requests per 10 seconds (safe buffer)
-  const BATCH_SIZE = 20; // 10 cards = 20 requests per batch
-  const DELAY_BETWEEN_BATCHES = 300; // 500ms delay between batches (optimized for speed while staying safe)
-  const DELAY_BETWEEN_REQUESTS = 150; // 150ms delay between cards (safe: ~6.67 req/sec, well under 10 req/sec limit)
-
-  const cardDataResults = [];
-
-  console.log("Fetching card data in batches...", {
-    BATCH_SIZE,
-    DELAY_BETWEEN_BATCHES,
-    DELAY_BETWEEN_REQUESTS,
-  });
-
-  for (let i = 0; i < cards.length; i += BATCH_SIZE) {
-    const batch = cards.slice(i, i + BATCH_SIZE);
-    console.log(
-      `Processing batch ${Math.floor(i / BATCH_SIZE) + 1} of ${Math.ceil(cards.length / BATCH_SIZE)} (${batch.length} cards)...`,
-    );
-
-    // Process cards sequentially within batch to avoid overwhelming the API
-    const batchResults = [];
-    for (let j = 0; j < batch.length; j++) {
-      const card = batch[j];
-
-      // Fetch both requests for this card in parallel
-      const [actions, cardCustomFields] = await Promise.all([
-        fetchCardActions(card.id, token),
-        fetchCardCustomFields(card.id, token),
-      ]);
-
-      batchResults.push({
-        card,
-        actions,
-        cardCustomFields,
-      });
-
-      // Small delay between cards in the same batch (except last card)
-      if (j < batch.length - 1) {
-        await new Promise((resolve) =>
-          setTimeout(resolve, DELAY_BETWEEN_REQUESTS),
-        );
-      }
-    }
-
-    cardDataResults.push(...batchResults);
-
-    // Add delay between batches (except for the last batch)
-    if (i + BATCH_SIZE < cards.length) {
-      await new Promise((resolve) =>
-        setTimeout(resolve, DELAY_BETWEEN_BATCHES),
-      );
-    }
-  }
+  // STEP 1: Fetch all card data (single-card or batched based on flag)
+  console.log(
+    `Fetching data for ${cards.length} cards (mode: ${USE_SINGLE_CARD_FETCH ? "single-card" : "batched"})...`,
+  );
+  const cardDataResults = USE_SINGLE_CARD_FETCH
+    ? await fetchCardDataSingleCard(cards, token)
+    : await fetchCardDataBatched(cards, token);
 
   console.log("All card data fetched, processing...");
 
@@ -884,9 +937,18 @@ const generateReport = async (t, listId, listName) => {
     // Close popup if open
     return t.closePopup();
   } catch (error) {
-    console.error("Error generating report:", error);
+    console.error("[List Report] generateReport error:", {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      cause: error.cause,
+    });
+    const toastMessage =
+      error.message === "Failed to fetch"
+        ? "Network error (check connection or try single-card mode)."
+        : `Error generating report: ${error.message}`;
     t.alert({
-      message: `Error generating report: ${error.message}`,
+      message: toastMessage,
       duration: 5,
       display: "error",
     });
