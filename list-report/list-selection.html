@@ -43,7 +43,7 @@
       display: none;
       text-align: center;
       margin-top: 10px;
-      color: #666;
+      color: white;
     }
     #error {
       display: none;
@@ -56,7 +56,7 @@
   </style>
 </head>
 <body>
-  <h3>Generate List Report</h3>
+  <h3>Generate List Report v<span id="version"></span></h3>
   <p>Select a list to generate a report:</p>
   <select id="list-select">
     <option value="">Loading lists...</option>
@@ -79,6 +79,9 @@
     var generateBtn = document.getElementById('generate-btn');
     var loadingDiv = document.getElementById('loading');
     var errorDiv = document.getElementById('error');
+    var versionSpan = document.getElementById('version');
+
+    versionSpan.textContent = VERSION;
 
     async function loadLists() {
       try {
