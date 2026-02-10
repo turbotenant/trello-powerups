@@ -57,6 +57,30 @@ const getCardListEntryDate = (actions, cardId, targetListId) => {
 };
 
 /**
+ * Gets when a card was marked as complete (dueComplete set to true).
+ * @param {Array} actions - Array of Trello actions for the card.
+ * @param {string} cardId - The card ID (unused, kept for signature consistency).
+ * @returns {Date|null} The date when the card was marked complete, or null if never completed.
+ */
+const getCardCompletionDate = (actions, cardId) => {
+  // Trello returns actions newest-first; find the most recent completion
+  const completionAction = actions.find(
+    (action) =>
+      action.type === "updateCard" &&
+      action.data &&
+      action.data.card &&
+      action.data.card.dueComplete === true &&
+      (action.data.old == null || action.data.old.dueComplete !== true),
+  );
+
+  if (!completionAction || !completionAction.date) {
+    return null;
+  }
+
+  return new Date(completionAction.date);
+};
+
+/**
  * Fetches all cards from a specific list.
  * @param {string} listId - The list ID.
  * @param {string} token - API token.
@@ -118,7 +142,8 @@ const fetchWithRetry = async (fetchFn, maxRetries = 3) => {
 };
 
 /**
- * Fetches card actions to determine when it entered the list.
+ * Fetches card actions (list movements, createCard, and updateCard including dueComplete).
+ * Used for list entry date and for completion date (when card was marked complete).
  * @param {string} cardId - The card ID.
  * @param {string} token - API token.
  * @returns {Promise<Array>} Array of card actions.
@@ -126,7 +151,7 @@ const fetchWithRetry = async (fetchFn, maxRetries = 3) => {
 const fetchCardActions = async (cardId, token) => {
   const response = await fetchWithRetry(() =>
     fetch(
-      `https://api.trello.com/1/cards/${cardId}/actions?filter=updateCard:idList,createCard&key=${APP_KEY}&token=${token}`,
+      `https://api.trello.com/1/cards/${cardId}/actions?filter=updateCard,createCard&key=${APP_KEY}&token=${token}`,
     ),
   );
 
@@ -296,6 +321,8 @@ const getCustomFieldValue = (
 
 /**
  * Processes cards and aggregates data by member.
+ * On Time / Past Due: Based on when the card was marked complete (dueComplete) vs due date;
+ * cards with a due date but not yet completed are excluded from those counts.
  * @param {Array} cards - Array of card objects.
  * @param {string} listId - The list ID.
  * @param {string} boardId - The board ID.
@@ -431,7 +458,7 @@ const aggregateCardData = async (cards, listId, boardId, token) => {
 
   // STEP 4: Process all cards (now all data is in memory)
   for (const { card, actions, cardCustomFields } of cardDataResults) {
-    const listEntryDate = getCardListEntryDate(actions, card.id, listId);
+    const completionDate = getCardCompletionDate(actions, card.id);
 
     const sizeValue = sizeField
       ? getCustomFieldValue(cardCustomFields, sizeField.id, sizeField)
@@ -478,14 +505,15 @@ const aggregateCardData = async (cards, listId, boardId, token) => {
       uniqueDaysToRelease.add("No Days to Release");
     }
 
-    // Determine on-time status
+    // Determine on-time status based on when card was marked complete vs due date
     let isOnTime = null;
     let isPastDue = null;
-    if (card.due) {
+    if (card.due && completionDate) {
       const dueDate = new Date(card.due);
-      isOnTime = listEntryDate <= dueDate;
-      isPastDue = listEntryDate > dueDate;
+      isOnTime = completionDate <= dueDate;
+      isPastDue = completionDate > dueDate;
     }
+    // Cards with due date but not yet completed are excluded from on-time/past-due counts
 
     // Process members (cards can have multiple members)
     const memberIds = card.idMembers || [];
@@ -644,7 +672,7 @@ const generateCSV = (aggregatedData) => {
     header.push(columnName);
   });
   
-  // Add fixed columns
+  // Add fixed columns (On Time / Past Due = completion date vs due date; incomplete cards excluded)
   header.push("On Time", "Past Due", "Total Cards");
 
   // Build CSV rows
