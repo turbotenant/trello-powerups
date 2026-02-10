@@ -137,6 +137,7 @@ const fetchWithRetry = async (fetchFn, maxRetries = 3) => {
       continue;
     }
 
+    console.error(`Failed to fetch with retry: ${response}`);
     // If no retries left or other error, throw
     throw new Error(`Failed to fetch: ${response.status}`);
   }
@@ -157,6 +158,7 @@ const fetchCardActions = async (cardId, token) => {
   );
 
   if (!response.ok) {
+    console.error(`Failed to fetch card actions: ${response}`);
     throw new Error(`Failed to fetch card actions: ${response.status}`);
   }
 
@@ -178,6 +180,7 @@ const fetchCardCustomFields = async (cardId, token) => {
   );
 
   if (!response.ok) {
+    console.error(`Failed to fetch custom fields: ${response}`);
     throw new Error(`Failed to fetch custom fields: ${response.status}`);
   }
 
@@ -202,6 +205,7 @@ const fetchBoardCustomFields = async (boardId, token) => {
   );
 
   if (!response.ok) {
+    console.error(`Failed to fetch custom field definitions: ${response}`);
     throw new Error(
       `Failed to fetch custom field definitions: ${response.status}`,
     );
@@ -222,6 +226,7 @@ const fetchMember = async (memberId, token) => {
   );
 
   if (!response.ok) {
+    console.error(`Failed to fetch member: ${response}`);
     throw new Error(`Failed to fetch member: ${response.status}`);
   }
 
@@ -384,10 +389,16 @@ const aggregateCardData = async (cards, listId, boardId, token) => {
   // Each card makes 2 requests (actions + custom fields)
   // Using 150ms between requests = ~6.67 req/sec = ~67 requests per 10 seconds (safe buffer)
   const BATCH_SIZE = 20; // 10 cards = 20 requests per batch
-  const DELAY_BETWEEN_BATCHES = 500; // 500ms delay between batches (optimized for speed while staying safe)
+  const DELAY_BETWEEN_BATCHES = 300; // 500ms delay between batches (optimized for speed while staying safe)
   const DELAY_BETWEEN_REQUESTS = 150; // 150ms delay between cards (safe: ~6.67 req/sec, well under 10 req/sec limit)
 
   const cardDataResults = [];
+
+  console.log("Fetching card data in batches...", {
+    BATCH_SIZE,
+    DELAY_BETWEEN_BATCHES,
+    DELAY_BETWEEN_REQUESTS,
+  });
 
   for (let i = 0; i < cards.length; i += BATCH_SIZE) {
     const batch = cards.slice(i, i + BATCH_SIZE);
