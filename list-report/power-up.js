@@ -384,10 +384,16 @@ const aggregateCardData = async (cards, listId, boardId, token) => {
   // Each card makes 2 requests (actions + custom fields)
   // Using 150ms between requests = ~6.67 req/sec = ~67 requests per 10 seconds (safe buffer)
   const BATCH_SIZE = 20; // 10 cards = 20 requests per batch
-  const DELAY_BETWEEN_BATCHES = 500; // 500ms delay between batches (optimized for speed while staying safe)
+  const DELAY_BETWEEN_BATCHES = 300; // 500ms delay between batches (optimized for speed while staying safe)
   const DELAY_BETWEEN_REQUESTS = 150; // 150ms delay between cards (safe: ~6.67 req/sec, well under 10 req/sec limit)
 
   const cardDataResults = [];
+
+  console.log("Fetching card data in batches...", {
+    BATCH_SIZE,
+    DELAY_BETWEEN_BATCHES,
+    DELAY_BETWEEN_REQUESTS,
+  });
 
   for (let i = 0; i < cards.length; i += BATCH_SIZE) {
     const batch = cards.slice(i, i + BATCH_SIZE);
