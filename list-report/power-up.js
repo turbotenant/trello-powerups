@@ -1,6 +1,11 @@
 /* global TrelloPowerUp, dayjs, APP_KEY, APP_NAME, ICON_URL */
 
-// ===== HELPER FUNCTIONS =====
+//  === DEBUG LOGGING ===
+console.log("🚀 Power-Up List Report script loaded!");
+console.log("📍 Current URL List Report:", window.location.href);
+console.log("🔍 TrelloPowerUp available List Report:", typeof TrelloPowerUp);
+console.log("🔍 List Report Version:", 1);
+// === END DEBUG ===
 
 /**
  * Extracts the creation timestamp from a Trello card ID.
@@ -92,7 +97,7 @@ const fetchListCards = async (listId, token) => {
   );
 
   if (!response.ok) {
-    console.error(`Failed to fetch cards: ${response}`);
+    console.error(`Failed to fetch cards: ${await response.text()}`);
     throw new Error(`Failed to fetch cards: ${response.status}`);
   }
 
@@ -137,7 +142,7 @@ const fetchWithRetry = async (fetchFn, maxRetries = 3) => {
       continue;
     }
 
-    console.error(`Failed to fetch with retry: ${response}`);
+    console.error(`Failed to fetch with retry: ${await response.text()}`);
     // If no retries left or other error, throw
     throw new Error(`Failed to fetch: ${response.status}`);
   }
@@ -158,7 +163,7 @@ const fetchCardActions = async (cardId, token) => {
   );
 
   if (!response.ok) {
-    console.error(`Failed to fetch card actions: ${response}`);
+    console.error(`Failed to fetch card actions: ${await response.text()}`);
     throw new Error(`Failed to fetch card actions: ${response.status}`);
   }
 
@@ -180,7 +185,7 @@ const fetchCardCustomFields = async (cardId, token) => {
   );
 
   if (!response.ok) {
-    console.error(`Failed to fetch custom fields: ${response}`);
+    console.error(`Failed to fetch custom fields: ${await response.text()}`);
     throw new Error(`Failed to fetch custom fields: ${response.status}`);
   }
 
@@ -205,7 +210,9 @@ const fetchBoardCustomFields = async (boardId, token) => {
   );
 
   if (!response.ok) {
-    console.error(`Failed to fetch custom field definitions: ${response}`);
+    console.error(
+      `Failed to fetch custom field definitions: ${await response.text()}`,
+    );
     throw new Error(
       `Failed to fetch custom field definitions: ${response.status}`,
     );
@@ -226,7 +233,7 @@ const fetchMember = async (memberId, token) => {
   );
 
   if (!response.ok) {
-    console.error(`Failed to fetch member: ${response}`);
+    console.error(`Failed to fetch member: ${await response.text()}`);
     throw new Error(`Failed to fetch member: ${response.status}`);
   }
 
