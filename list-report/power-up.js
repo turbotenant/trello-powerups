@@ -92,6 +92,7 @@ const fetchListCards = async (listId, token) => {
   );
 
   if (!response.ok) {
+    console.error(`Failed to fetch cards: ${response}`);
     throw new Error(`Failed to fetch cards: ${response.status}`);
   }
 
@@ -382,7 +383,7 @@ const aggregateCardData = async (cards, listId, boardId, token) => {
   // Trello limits: 100 requests per 10 seconds per token (most restrictive)
   // Each card makes 2 requests (actions + custom fields)
   // Using 150ms between requests = ~6.67 req/sec = ~67 requests per 10 seconds (safe buffer)
-  const BATCH_SIZE = 10; // 10 cards = 20 requests per batch
+  const BATCH_SIZE = 20; // 10 cards = 20 requests per batch
   const DELAY_BETWEEN_BATCHES = 500; // 500ms delay between batches (optimized for speed while staying safe)
   const DELAY_BETWEEN_REQUESTS = 150; // 150ms delay between cards (safe: ~6.67 req/sec, well under 10 req/sec limit)
 
@@ -544,7 +545,8 @@ const aggregateCardData = async (cards, listId, boardId, token) => {
       } else if (daysToReleaseField) {
         // Track cards without Days to Release value
         memberData["unassigned"].daysToRelease["No Days to Release"] =
-          (memberData["unassigned"].daysToRelease["No Days to Release"] || 0) + 1;
+          (memberData["unassigned"].daysToRelease["No Days to Release"] || 0) +
+          1;
       }
       if (isOnTime) {
         memberData["unassigned"].onTime++;
@@ -611,7 +613,7 @@ const aggregateCardData = async (cards, listId, boardId, token) => {
     if (b === "No Size") return -1;
     return a.localeCompare(b);
   });
-  
+
   const sortedDaysToRelease = Array.from(uniqueDaysToRelease).sort((a, b) => {
     if (a === "No Days to Release") return 1;
     if (b === "No Days to Release") return -1;
@@ -657,21 +659,24 @@ const generateCSV = (aggregatedData) => {
 
   // Build header row
   const header = ["Member"];
-  
+
   // Add size columns
   uniqueSizes.forEach((size) => {
     // Use consistent naming - "No Size" stays as is, others get "Size " prefix
     const columnName = size === "No Size" ? "No Size" : `Size ${size}`;
     header.push(columnName);
   });
-  
+
   // Add days to release columns
   uniqueDaysToRelease.forEach((days) => {
     // Use consistent naming - "No Days to Release" stays as is, others get "Days to Release " prefix
-    const columnName = days === "No Days to Release" ? "No Days to Release" : `Days to Release ${days}`;
+    const columnName =
+      days === "No Days to Release"
+        ? "No Days to Release"
+        : `Days to Release ${days}`;
     header.push(columnName);
   });
-  
+
   // Add fixed columns (On Time / Past Due = completion date vs due date; incomplete cards excluded)
   header.push("On Time", "Past Due", "Total Cards");
 
@@ -926,7 +931,8 @@ if (!isPopupContext) {
       "board-buttons": async function (t, options) {
         return [
           {
-            icon: ICON_URL,
+            // Same colored icon for both themes so it appears in color in the header
+            icon: { dark: ICON_URL, light: ICON_URL },
             text: "Generate List Report",
             callback: generateReportCallback,
           },
