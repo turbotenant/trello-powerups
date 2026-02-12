@@ -4,11 +4,13 @@ A collection of custom Trello Power-Ups designed to enhance workflow management 
 
 ## Overview
 
-This repository contains two Trello Power-Ups that integrate with your Trello boards to provide additional functionality:
+This repository contains three Trello Power-Ups that integrate with your Trello boards to provide additional functionality:
 
 1. **Time in List** - Tracks how long cards spend in each list with business time calculations
 
 2. **Start Case** - Automates case initiation by moving cards, assigning members, and setting due dates
+
+3. **List Report** - Generates a CSV report for a selected list with member-level metrics and optional cycle time (current work → released)
 
 ## Power-Ups
 
@@ -89,6 +91,41 @@ Automates the workflow of starting a new case by moving cards to development, as
 - Board must have a list named "IN DEVELOPMENT"
 - Board must have a custom field named "Days to Release" (number type)
 
+### List Report
+
+Generates a CSV report for a selected list with one row per member (plus "Unassigned" and a TOTALS row). Columns include Size breakdown, Days to Release breakdown, On Time, Past Due, Total Cards, and optionally **Avg days (current → released)**.
+
+#### Features
+
+- **Board-level report**: Select any list on the board and download a CSV.
+- **Per-member metrics**: Size and Days to Release breakdowns, on-time vs past-due counts, total cards.
+- **Avg days (current → released)**: When configured in settings, shows the average number of days (rounded to nearest integer) that cards took to move from the current work list to the released list.
+
+#### Configuring the report (Settings)
+
+1. On your Trello board, open **Power-Ups** in the board menu.
+2. Find **List Report** under enabled Power-Ups and open its **Settings** (gear icon).
+3. **Current work list**: Choose the list that represents work in progress (e.g. "IN DEVELOPMENT"). Used to compute how long cards take from this list until release.
+4. **Released list**: Choose the list that represents released/done work (e.g. "ON MAIN").
+5. Click **Save**.
+
+If either list is not set, the report still runs but the "Avg days (current → released)" column is omitted from the CSV.
+
+#### Avg days (current → released) column
+
+When both lists are configured in settings, the CSV includes an extra column with the average number of days (rounded to nearest integer) that cards took to move from the current work list to the released list, per member. Members with no cards that completed that path show a blank cell. The TOTALS row shows the overall average across all such cards.
+
+#### Optional board custom fields
+
+The report can show breakdowns by **Size** and **Days to Release** if the board has custom fields with those names (case-insensitive).
+
+#### Usage
+
+1. Enable the Power-Up on your board.
+2. Authorize the Power-Up to access your Trello data.
+3. (Optional) Configure **Current work list** and **Released list** in Settings for the cycle-time column.
+4. Click the board button **Generate List Report**, select a list, and download the CSV.
+
 ## Installation
 
 ### Prerequisites
@@ -112,6 +149,7 @@ These Power-Ups are hosted via GitHub Pages:
 ```
 https://turbotenant.github.io/trello-powerups/time-in-list/
 https://turbotenant.github.io/trello-powerups/start-case/
+https://turbotenant.github.io/trello-powerups/list-report/
 ```
 
 ## Project Structure
@@ -127,11 +165,18 @@ trello-powerups/
 │   ├── index.html              # Main UI
 │   ├── power-up.js             # Power-Up logic
 │   └── style.css               # Styles
-└── start-case/                 # Start Case Power-Up
+├── start-case/                 # Start Case Power-Up
+│   ├── authorize.html          # Authorization page
+│   ├── constants.js            # App configuration
+│   ├── index.html              # Main page
+│   └── power-up.js             # Power-Up logic
+└── list-report/                # List Report Power-Up
     ├── authorize.html          # Authorization page
     ├── constants.js            # App configuration
-    ├── index.html              # Main page
-    └── power-up.js             # Power-Up logic
+    ├── index.html              # Connector entry
+    ├── list-selection.html     # List picker popup
+    ├── power-up.js             # Power-Up logic
+    └── settings.html           # Board settings (current work / released list)
 ```
 
 ## Technical Details
@@ -158,10 +203,11 @@ trello-powerups/
 
 ### Storage
 
-Both Power-Ups use Trello's storage API:
+All Power-Ups use Trello's storage API:
 
 - **Organization/Board Level**: Authorization tokens
 - **Card Level**: Pause/resume events (Time in List only)
+- **Board Level (List Report)**: Current work list ID and released list ID (private storage, set in Settings)
 
 ## Development
 
@@ -224,6 +270,12 @@ const HOLIDAY_RULES = {
 
 - `on-enable`: Initial authorization
 - `card-buttons`: Start case button
+
+### List Report
+
+- `on-enable`: Initial authorization
+- `board-buttons`: Generate List Report button
+- `show-settings`: Board settings (current work list, released list)
 
 ## Security
 

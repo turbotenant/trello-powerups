@@ -62,6 +62,91 @@ const getCardListEntryDate = (actions, cardId, targetListId) => {
 };
 
 /**
+ * Returns list movements for a card in chronological order (oldest first).
+ * @param {Array} actions - Array of Trello actions for the card.
+ * @param {string} cardId - The card ID (used for createCard fallback if needed).
+ * @returns {Array<{listId: string, enteredAt: Date}>} Movements with listId and enteredAt.
+ */
+const getListMovementsChronological = (actions, cardId) => {
+  const listMovements = actions
+    .filter(
+      (action) =>
+        action.type === "createCard" ||
+        (action.type === "updateCard" && action.data.listAfter),
+    )
+    .map((action) => ({
+      listId:
+        action.type === "createCard"
+          ? action.data.list.id
+          : action.data.listAfter.id,
+      enteredAt: new Date(action.date),
+    }))
+    .reverse(); // Trello returns newest-first; reverse for chronological order
+  return listMovements;
+};
+
+/**
+ * Gets the first time a card entered a list (chronologically).
+ * @param {Array} actions - Array of Trello actions for the card.
+ * @param {string} cardId - The card ID.
+ * @param {string} listId - The list ID.
+ * @returns {Date|null} The date of first entry into the list, or null if never entered.
+ */
+const getFirstCardListEntryDate = (actions, cardId, listId) => {
+  const movements = getListMovementsChronological(actions, cardId);
+  const firstEntry = movements.find((m) => m.listId === listId);
+  return firstEntry ? firstEntry.enteredAt : null;
+};
+
+/**
+ * Gets the most recent time a card entered a list before a given date.
+ * @param {Array} actions - Array of Trello actions for the card.
+ * @param {string} cardId - The card ID.
+ * @param {string} listId - The list ID.
+ * @param {Date} beforeDate - Only consider entries strictly before this date.
+ * @returns {Date|null} The latest enteredAt before beforeDate, or null if none.
+ */
+const getCardListEntryDateBefore = (actions, cardId, listId, beforeDate) => {
+  const movements = getListMovementsChronological(actions, cardId);
+  const matching = movements.filter(
+    (m) => m.listId === listId && m.enteredAt < beforeDate,
+  );
+  if (matching.length === 0) return null;
+  return matching[matching.length - 1].enteredAt;
+};
+
+/**
+ * Gets the number of days from when the card entered the current work list
+ * (most recent entry before release) to when it first entered the released list.
+ * @param {Array} actions - Array of Trello actions for the card.
+ * @param {string} cardId - The card ID.
+ * @param {string} currentWorkListId - The list ID for "current work".
+ * @param {string} releasedListId - The list ID for "released".
+ * @returns {number|null} Days (rounded to nearest integer), or null if cycle cannot be computed.
+ */
+const getDaysFromCurrentWorkToReleased = (
+  actions,
+  cardId,
+  currentWorkListId,
+  releasedListId,
+) => {
+  const releasedAt = getFirstCardListEntryDate(actions, cardId, releasedListId);
+  if (!releasedAt) return null;
+
+  const currentWorkAt = getCardListEntryDateBefore(
+    actions,
+    cardId,
+    currentWorkListId,
+    releasedAt,
+  );
+  if (!currentWorkAt) return null;
+
+  const diffMs = releasedAt - currentWorkAt;
+  const days = diffMs / (24 * 60 * 60 * 1000);
+  return Math.round(days);
+};
+
+/**
  * Gets when a card was marked as complete (dueComplete set to true).
  * @param {Array} actions - Array of Trello actions for the card.
  * @param {string} cardId - The card ID (unused, kept for signature consistency).
@@ -483,9 +568,23 @@ const fetchCardDataSingleCard = async (cards, token) => {
  * @param {string} listId - The list ID.
  * @param {string} boardId - The board ID.
  * @param {string} token - API token.
+ * @param {Object} [listIds] - Optional. { currentWorkListId, releasedListId } for cycle time column.
  * @returns {Promise<Object>} Aggregated data structure.
  */
-const aggregateCardData = async (cards, listId, boardId, token) => {
+const aggregateCardData = async (
+  cards,
+  listId,
+  boardId,
+  token,
+  listIds = {},
+) => {
+  const { currentWorkListId, releasedListId } = listIds;
+  const hasCycleTimeColumn = Boolean(
+    currentWorkListId && releasedListId,
+  );
+  let totalCycleTimeSum = 0;
+  let totalCycleTimeCount = 0;
+
   // Fetch custom field definitions
   const customFields = await fetchBoardCustomFields(boardId, token);
 
@@ -636,6 +735,7 @@ const aggregateCardData = async (cards, listId, boardId, token) => {
           onTime: 0,
           pastDue: 0,
           total: 0,
+          ...(hasCycleTimeColumn && { cycleTimeSum: 0, cycleTimeCount: 0 }),
         };
       }
 
@@ -673,6 +773,7 @@ const aggregateCardData = async (cards, listId, boardId, token) => {
             onTime: 0,
             pastDue: 0,
             total: 0,
+            ...(hasCycleTimeColumn && { cycleTimeSum: 0, cycleTimeCount: 0 }),
           };
         }
 
@@ -699,6 +800,29 @@ const aggregateCardData = async (cards, listId, boardId, token) => {
         if (isPastDue) {
           memberData[memberId].pastDue++;
         }
+      }
+    }
+
+    // Cycle time: current work list → released list (when both configured)
+    if (hasCycleTimeColumn) {
+      const cycleDays = getDaysFromCurrentWorkToReleased(
+        actions,
+        card.id,
+        currentWorkListId,
+        releasedListId,
+      );
+      if (cycleDays !== null) {
+        const memberIdsForCard = card.idMembers || [];
+        const idsToUpdate =
+          memberIdsForCard.length === 0 ? ["unassigned"] : memberIdsForCard;
+        for (const memberId of idsToUpdate) {
+          if (memberData[memberId]) {
+            memberData[memberId].cycleTimeSum += cycleDays;
+            memberData[memberId].cycleTimeCount += 1;
+          }
+        }
+        totalCycleTimeSum += cycleDays;
+        totalCycleTimeCount += 1;
       }
     }
   }
@@ -729,12 +853,18 @@ const aggregateCardData = async (cards, listId, boardId, token) => {
     return a.localeCompare(b);
   });
 
-  return {
+  const result = {
     memberData,
     memberNames: memberNamesObj,
     uniqueSizes: sortedSizes,
     uniqueDaysToRelease: sortedDaysToRelease,
   };
+  if (hasCycleTimeColumn) {
+    result.hasCycleTimeColumn = true;
+    result.totalCycleTimeSum = totalCycleTimeSum;
+    result.totalCycleTimeCount = totalCycleTimeCount;
+  }
+  return result;
 };
 
 /**
@@ -763,8 +893,15 @@ const escapeCSV = (value) => {
  * @returns {string} CSV content.
  */
 const generateCSV = (aggregatedData) => {
-  const { memberData, memberNames, uniqueSizes, uniqueDaysToRelease } =
-    aggregatedData;
+  const {
+    memberData,
+    memberNames,
+    uniqueSizes,
+    uniqueDaysToRelease,
+    hasCycleTimeColumn = false,
+    totalCycleTimeSum = 0,
+    totalCycleTimeCount = 0,
+  } = aggregatedData;
 
   // Build header row
   const header = ["Member"];
@@ -788,6 +925,9 @@ const generateCSV = (aggregatedData) => {
 
   // Add fixed columns (On Time / Past Due = completion date vs due date; incomplete cards excluded)
   header.push("On Time", "Past Due", "Total Cards");
+  if (hasCycleTimeColumn) {
+    header.push("Avg days (current → released)");
+  }
 
   // Build CSV rows
   const rows = [header.map(escapeCSV).join(",")];
@@ -850,6 +990,13 @@ const generateCSV = (aggregatedData) => {
       escapeCSV(data.pastDue),
       escapeCSV(data.total),
     );
+    if (hasCycleTimeColumn) {
+      const avg =
+        data.cycleTimeCount > 0
+          ? Math.round(data.cycleTimeSum / data.cycleTimeCount)
+          : "";
+      row.push(escapeCSV(avg));
+    }
 
     // Accumulate totals for fixed columns
     totals.onTime += data.onTime;
@@ -878,6 +1025,13 @@ const generateCSV = (aggregatedData) => {
     escapeCSV(totals.pastDue),
     escapeCSV(totals.total),
   );
+  if (hasCycleTimeColumn) {
+    const overallAvg =
+      totalCycleTimeCount > 0
+        ? Math.round(totalCycleTimeSum / totalCycleTimeCount)
+        : "";
+    totalsRow.push(escapeCSV(overallAvg));
+  }
 
   rows.push(totalsRow.join(","));
 
@@ -945,12 +1099,21 @@ const generateReport = async (t, listId, listName) => {
       });
     }
 
+    // Board settings for cycle time column (current work → released)
+    const currentWorkListId = await getCurrentWorkListId(t);
+    const releasedListId = await getReleasedListId(t);
+    const listIds =
+      currentWorkListId && releasedListId
+        ? { currentWorkListId, releasedListId }
+        : {};
+
     // Aggregate data
     const aggregatedData = await aggregateCardData(
       cards,
       listId,
       boardId,
       token,
+      listIds,
     );
 
     // Generate CSV
@@ -1118,6 +1281,12 @@ if (currentPath.includes("settings.html")) {
       };
 
       const token = await getAuthToken(t);
+
+      const versionSpan = document.getElementById("version");
+      if (versionSpan) {
+        versionSpan.textContent = typeof VERSION !== "undefined" ? VERSION : "";
+      }
+
       if (!token) {
         const container = document.getElementById("list-report-settings");
         container.innerHTML = `
@@ -1137,9 +1306,6 @@ if (currentPath.includes("settings.html")) {
             });
           });
         }
-
-        const versionSpan = document.getElementById("version");
-        versionSpan.textContent = VERSION;
 
         t.sizeTo("#content");
         return;
