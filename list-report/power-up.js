@@ -116,13 +116,14 @@ const getCardListEntryDateBefore = (actions, cardId, listId, beforeDate) => {
 };
 
 /**
- * Gets the number of days from when the card entered the current work list
- * (most recent entry before release) to when it first entered the released list.
+ * Gets the number of days (fractional) from when the card first entered the current work list
+ * to when it first entered the released list (full cycle from start of work to release).
+ * Fractional days allow sub-day cycles to be displayed as hours in the CSV.
  * @param {Array} actions - Array of Trello actions for the card.
  * @param {string} cardId - The card ID.
  * @param {string} currentWorkListId - The list ID for "current work".
  * @param {string} releasedListId - The list ID for "released".
- * @returns {number|null} Days (rounded to nearest integer), or null if cycle cannot be computed.
+ * @returns {number|null} Days (fractional), or null if cycle cannot be computed.
  */
 const getDaysFromCurrentWorkToReleased = (
   actions,
@@ -133,17 +134,15 @@ const getDaysFromCurrentWorkToReleased = (
   const releasedAt = getFirstCardListEntryDate(actions, cardId, releasedListId);
   if (!releasedAt) return null;
 
-  const currentWorkAt = getCardListEntryDateBefore(
+  const currentWorkAt = getFirstCardListEntryDate(
     actions,
     cardId,
     currentWorkListId,
-    releasedAt,
   );
-  if (!currentWorkAt) return null;
+  if (!currentWorkAt || currentWorkAt >= releasedAt) return null;
 
   const diffMs = releasedAt - currentWorkAt;
-  const days = diffMs / (24 * 60 * 60 * 1000);
-  return Math.round(days);
+  return diffMs / (24 * 60 * 60 * 1000);
 };
 
 /**
@@ -579,9 +578,7 @@ const aggregateCardData = async (
   listIds = {},
 ) => {
   const { currentWorkListId, releasedListId } = listIds;
-  const hasCycleTimeColumn = Boolean(
-    currentWorkListId && releasedListId,
-  );
+  const hasCycleTimeColumn = Boolean(currentWorkListId && releasedListId);
   let totalCycleTimeSum = 0;
   let totalCycleTimeCount = 0;
 
@@ -990,12 +987,19 @@ const generateCSV = (aggregatedData) => {
       escapeCSV(data.pastDue),
       escapeCSV(data.total),
     );
+
     if (hasCycleTimeColumn) {
-      const avg =
+      const avgValue =
         data.cycleTimeCount > 0
-          ? Math.round(data.cycleTimeSum / data.cycleTimeCount)
-          : "";
-      row.push(escapeCSV(avg));
+          ? data.cycleTimeSum / data.cycleTimeCount
+          : null;
+
+      const hasCycleTimeValue =
+        avgValue >= 1 ? Math.round(avgValue) : `${Math.round(avgValue * 24)}hs`;
+
+      const cycleTimeDisplay = avgValue == null ? "" : hasCycleTimeValue;
+
+      row.push(escapeCSV(cycleTimeDisplay));
     }
 
     // Accumulate totals for fixed columns
@@ -1026,11 +1030,18 @@ const generateCSV = (aggregatedData) => {
     escapeCSV(totals.total),
   );
   if (hasCycleTimeColumn) {
-    const overallAvg =
-      totalCycleTimeCount > 0
-        ? Math.round(totalCycleTimeSum / totalCycleTimeCount)
-        : "";
-    totalsRow.push(escapeCSV(overallAvg));
+    const overallAvgValue =
+      totalCycleTimeCount > 0 ? totalCycleTimeSum / totalCycleTimeCount : null;
+
+    const hasOverallValue =
+      overallAvgValue >= 1
+        ? Math.round(overallAvgValue)
+        : `${Math.round(overallAvgValue * 24)}hs`;
+
+    const overallCycleTimeDisplay =
+      overallAvgValue == null ? "" : hasOverallValue;
+
+    totalsRow.push(escapeCSV(overallCycleTimeDisplay));
   }
 
   rows.push(totalsRow.join(","));
