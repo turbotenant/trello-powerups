@@ -105,6 +105,44 @@ const fetchListCards = async (listId, token) => {
 };
 
 /**
+ * Gets the board's current work list ID (saved in settings).
+ * @param {Object} t - The Trello Power-Up interface.
+ * @returns {Promise<string|null>} The list ID or null.
+ */
+const getCurrentWorkListId = async (t) => {
+  return t.get("board", "private", "currentWorkListId");
+};
+
+/**
+ * Saves the board's current work list ID.
+ * @param {Object} t - The Trello Power-Up interface.
+ * @param {string|null} listId - The list ID to save.
+ * @returns {Promise<void>}
+ */
+const setCurrentWorkListId = async (t, listId) => {
+  await t.set("board", "private", "currentWorkListId", listId || null);
+};
+
+/**
+ * Gets the board's released list ID (saved in settings).
+ * @param {Object} t - The Trello Power-Up interface.
+ * @returns {Promise<string|null>} The list ID or null.
+ */
+const getReleasedListId = async (t) => {
+  return t.get("board", "private", "releasedListId");
+};
+
+/**
+ * Saves the board's released list ID.
+ * @param {Object} t - The Trello Power-Up interface.
+ * @param {string|null} listId - The list ID to save.
+ * @returns {Promise<void>}
+ */
+const setReleasedListId = async (t, listId) => {
+  await t.set("board", "private", "releasedListId", listId || null);
+};
+
+/**
  * Retries a fetch request with exponential backoff on rate limit errors.
  * @param {Function} fetchFn - Function that returns a fetch promise.
  * @param {number} maxRetries - Maximum number of retries.
@@ -987,13 +1025,138 @@ if (typeof window !== "undefined") {
   window.generateReport = generateReport;
 }
 
-// Only initialize Power-Up in main context, not in popup contexts (list-selection.html, authorize.html)
+// Only initialize Power-Up in main context, not in popup contexts (list-selection.html, authorize.html, settings.html)
 const currentPath = window.location.pathname || window.location.href;
 const isPopupContext =
   currentPath.includes("list-selection.html") ||
   currentPath.includes("authorize.html");
 
-if (!isPopupContext) {
+if (currentPath.includes("settings.html")) {
+  // SETTINGS PAGE CODE - runs when settings.html is loaded
+  window.addEventListener("load", async () => {
+    const t = TrelloPowerUp.iframe({
+      appKey: APP_KEY,
+      appName: APP_NAME,
+    });
+    try {
+      /**
+       * Renders the list report settings (current work list and released list).
+       * @param {Object} t - The Trello Power-Up interface.
+       * @param {string} token - API token.
+       */
+      const renderListReportSettings = async (t, token) => {
+        const container = document.getElementById("list-report-settings");
+        if (!container) return;
+
+        const context = t.getContext();
+        const boardId = context && context.board;
+        if (!boardId) {
+          container.innerHTML =
+            '<p class="settings-error">Could not load board context.</p>';
+          return;
+        }
+
+        const listsResponse = await fetch(
+          `https://api.trello.com/1/boards/${boardId}/lists?key=${APP_KEY}&token=${token}`,
+        );
+        if (!listsResponse.ok) {
+          container.innerHTML =
+            '<p class="settings-error">Could not load lists.</p>';
+          return;
+        }
+
+        const lists = await listsResponse.json();
+        const currentWorkListId = await getCurrentWorkListId(t);
+        const releasedListId = await getReleasedListId(t);
+
+        const optionsHtml = (selectedId) =>
+          '<option value="">— None —</option>' +
+          lists
+            .map(
+              (list) =>
+                `<option value="${list.id}"${list.id === selectedId ? " selected" : ""}>${list.name}</option>`,
+            )
+            .join("");
+
+        container.innerHTML = `
+          <div class="settings-section">
+            <h3>Current work list</h3>
+            <p>Choose the list that represents work currently in progress.</p>
+            <select id="current-work-list-select">${optionsHtml(currentWorkListId)}</select>
+          </div>
+          <div class="settings-section">
+            <h3>Released list</h3>
+            <p>Choose the list that represents released/done work.</p>
+            <select id="released-list-select">${optionsHtml(releasedListId)}</select>
+          </div>
+          <button type="button" id="save-list-report-settings-btn" class="save-btn">Save</button>
+        `;
+
+        const saveBtn = document.getElementById(
+          "save-list-report-settings-btn",
+        );
+        if (saveBtn) {
+          saveBtn.addEventListener("click", async () => {
+            const currentWorkSelect = document.getElementById(
+              "current-work-list-select",
+            );
+            const releasedSelect = document.getElementById(
+              "released-list-select",
+            );
+            const selectedCurrentWork = currentWorkSelect
+              ? currentWorkSelect.value
+              : "";
+            const selectedReleased = releasedSelect ? releasedSelect.value : "";
+            await setCurrentWorkListId(t, selectedCurrentWork || null);
+            await setReleasedListId(t, selectedReleased || null);
+            saveBtn.textContent = "Saved!";
+            setTimeout(() => {
+              saveBtn.textContent = "Save";
+            }, 2000);
+          });
+        }
+      };
+
+      const token = await getAuthToken(t);
+      if (!token) {
+        const container = document.getElementById("list-report-settings");
+        container.innerHTML = `
+          <div style="text-align: center; padding: 20px;">
+            <p style="margin: 0 0 15px 0;">Please authorize this Power-Up to configure settings.</p>
+            <button id="auth-btn" style="background-color: #0079bf; color: white; border: none; padding: 10px 20px; border-radius: 3px; cursor: pointer; font-size: 14px;">
+              Authorize
+            </button>
+          </div>
+        `;
+
+        const authBtn = document.getElementById("auth-btn");
+        if (authBtn) {
+          authBtn.addEventListener("click", function () {
+            handleAuthorization(t, authBtn, () => {
+              location.reload();
+            });
+          });
+        }
+
+        const versionSpan = document.getElementById("version");
+        versionSpan.textContent = VERSION;
+
+        t.sizeTo("#content");
+        return;
+      }
+
+      await renderListReportSettings(t, token);
+      t.sizeTo("#content");
+    } catch (error) {
+      console.error("Error during List Report Settings execution:", error);
+      const container = document.getElementById("list-report-settings");
+      if (container) {
+        container.innerHTML =
+          '<p class="settings-error">An unexpected error occurred.</p>';
+      }
+    }
+  });
+} else if (!isPopupContext) {
   // ===== POWER-UP INITIALIZATION =====
   TrelloPowerUp.initialize(
     {
@@ -1017,6 +1180,13 @@ if (!isPopupContext) {
             callback: generateReportCallback,
           },
         ];
+      },
+      "show-settings": function (t, options) {
+        return t.popup({
+          title: "List Report Settings",
+          url: "./settings.html",
+          height: 400,
+        });
       },
     },
     {
