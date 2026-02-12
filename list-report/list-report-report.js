@@ -78,9 +78,7 @@
     listIds = {},
   ) {
     const { currentWorkListId, releasedListId } = listIds;
-    const hasCycleTimeColumn = Boolean(
-      currentWorkListId && releasedListId,
-    );
+    const hasCycleTimeColumn = Boolean(currentWorkListId && releasedListId);
     let totalCycleTimeSum = 0;
     let totalCycleTimeCount = 0;
 
@@ -207,9 +205,11 @@
           currentWorkListId,
           releasedListId,
         );
+
         if (cycleDays !== null) {
           const idsToUpdate =
             memberIds.length === 0 ? ["unassigned"] : memberIds;
+
           for (const memberId of idsToUpdate) {
             if (memberData[memberId]) {
               memberData[memberId].cycleTimeSum += cycleDays;
@@ -229,7 +229,10 @@
 
     console.log("=== Aggregation Summary ===");
     console.log("Unique Sizes found:", Array.from(uniqueSizes));
-    console.log("Unique Days to Release found:", Array.from(uniqueDaysToRelease));
+    console.log(
+      "Unique Days to Release found:",
+      Array.from(uniqueDaysToRelease),
+    );
     console.log("Total members:", Object.keys(memberData).length);
     console.log("Total cards processed:", cards.length);
 
@@ -251,11 +254,13 @@
       uniqueSizes: sortedSizes,
       uniqueDaysToRelease: sortedDaysToRelease,
     };
+
     if (hasCycleTimeColumn) {
       result.hasCycleTimeColumn = true;
       result.totalCycleTimeSum = totalCycleTimeSum;
       result.totalCycleTimeCount = totalCycleTimeCount;
     }
+
     return result;
   }
 
@@ -358,13 +363,23 @@
         escapeCSV(data.pastDue),
         escapeCSV(data.total),
       );
+
       if (hasCycleTimeColumn) {
-        const avg =
+        const avgValue =
           data.cycleTimeCount > 0
-            ? Math.round(data.cycleTimeSum / data.cycleTimeCount)
-            : "";
-        row.push(escapeCSV(avg));
+            ? data.cycleTimeSum / data.cycleTimeCount
+            : null;
+
+        const hasCycleTimeValue =
+          avgValue >= 1
+            ? Math.round(avgValue)
+            : `${Math.round(avgValue * 24)}hs`;
+
+        const cycleTimeDisplay = avgValue == null ? "" : hasCycleTimeValue;
+
+        row.push(escapeCSV(cycleTimeDisplay));
       }
+
       totals.onTime += data.onTime;
       totals.pastDue += data.pastDue;
       totals.total += data.total;
@@ -383,13 +398,24 @@
       escapeCSV(totals.pastDue),
       escapeCSV(totals.total),
     );
+
     if (hasCycleTimeColumn) {
-      const overallAvg =
+      const overallAvgValue =
         totalCycleTimeCount > 0
-          ? Math.round(totalCycleTimeSum / totalCycleTimeCount)
-          : "";
-      totalsRow.push(escapeCSV(overallAvg));
+          ? totalCycleTimeSum / totalCycleTimeCount
+          : null;
+
+      const hasOverallValue =
+        overallAvgValue >= 1
+          ? Math.round(overallAvgValue)
+          : `${Math.round(overallAvgValue * 24)}hs`;
+
+      const overallCycleTimeDisplay =
+        overallAvgValue == null ? "" : hasOverallValue;
+
+      totalsRow.push(escapeCSV(overallCycleTimeDisplay));
     }
+
     rows.push(totalsRow.join(","));
 
     const csvContent = rows.join("\n");

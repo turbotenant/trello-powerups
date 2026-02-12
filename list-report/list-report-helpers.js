@@ -99,13 +99,14 @@
   };
 
   /**
-   * Gets the number of days from when the card entered the current work list
-   * (most recent entry before release) to when it first entered the released list.
+   * Gets the number of days (fractional) from when the card first entered the current work list
+   * to when it first entered the released list (full cycle from start of work to release).
+   * Fractional days allow sub-day cycles to be displayed as hours in the CSV.
    * @param {Array} actions - Array of Trello actions for the card.
    * @param {string} cardId - The card ID.
    * @param {string} currentWorkListId - The list ID for "current work".
    * @param {string} releasedListId - The list ID for "released".
-   * @returns {number|null} Days (rounded to nearest integer), or null if cycle cannot be computed.
+   * @returns {number|null} Days (fractional), or null if cycle cannot be computed.
    */
   const getDaysFromCurrentWorkToReleased = (
     actions,
@@ -120,17 +121,15 @@
     );
     if (!releasedAt) return null;
 
-    const currentWorkAt = getCardListEntryDateBefore(
+    const currentWorkAt = getFirstCardListEntryDate(
       actions,
       cardId,
       currentWorkListId,
-      releasedAt,
     );
-    if (!currentWorkAt) return null;
+    if (!currentWorkAt || currentWorkAt >= releasedAt) return null;
 
     const diffMs = releasedAt - currentWorkAt;
-    const days = diffMs / (24 * 60 * 60 * 1000);
-    return Math.round(days);
+    return diffMs / (24 * 60 * 60 * 1000);
   };
 
   /**
@@ -208,7 +207,9 @@
           (opt) => opt.id === option.id,
         );
         if (optionDef) {
-          return optionDef.value.text || optionDef.value.name || optionDef.value;
+          return (
+            optionDef.value.text || optionDef.value.name || optionDef.value
+          );
         }
       }
       return option.id || null;
