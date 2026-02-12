@@ -53,17 +53,23 @@
       background-color: #ffebee;
       border-radius: 3px;
     }
+    .board-bar-content {
+      max-width: 400px;
+      margin: 0 auto;
+    }
   </style>
 </head>
 <body>
-  <h3>Generate Board Report v<span id="version"></span></h3>
-  <p>Select a list to generate a report:</p>
-  <select id="list-select">
-    <option value="">Loading lists...</option>
-  </select>
-  <button id="generate-btn" disabled>Generate Report</button>
-  <div id="loading">Generating report, please wait...</div>
-  <div id="error"></div>
+  <div class="board-bar-content">
+    <h3>Generate Board Report v<span id="version"></span></h3>
+    <p>Select a list to generate a report for:</p>
+    <select id="list-select">
+      <option value="">Loading lists...</option>
+    </select>
+    <button id="generate-btn" disabled>Generate Report</button>
+    <div id="loading">Generating report, please wait...</div>
+    <div id="error"></div>
+  </div>
 
   <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
   <script src="./constants.js"></script>
