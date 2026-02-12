@@ -52,6 +52,25 @@
   };
 
   /**
+   * Gets the board's QA list ID (saved in settings).
+   * @param {Object} t - The Trello Power-Up interface.
+   * @returns {Promise<string|null>} The list ID or null.
+   */
+  const getQaListId = async (t) => {
+    return t.get("board", "private", "qaListId");
+  };
+
+  /**
+   * Saves the board's QA list ID.
+   * @param {Object} t - The Trello Power-Up interface.
+   * @param {string|null} listId - The list ID to save.
+   * @returns {Promise<void>}
+   */
+  const setQaListId = async (t, listId) => {
+    await t.set("board", "private", "qaListId", listId || null);
+  };
+
+  /**
    * Fetches all cards from a specific list.
    * @param {string} listId - The list ID.
    * @param {string} token - API token.
@@ -300,5 +319,7 @@
     setCurrentWorkListId,
     getReleasedListId,
     setReleasedListId,
+    getQaListId,
+    setQaListId,
   };
 })();

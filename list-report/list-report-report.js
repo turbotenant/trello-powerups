@@ -13,6 +13,7 @@
 
   const {
     getCardCompletionDate,
+    getCountOfCardListEntries,
     getCustomFieldValue,
     getDaysFromCurrentWorkToReleased,
   } = helpers;
@@ -67,7 +68,7 @@
    * @param {string} listId - The list ID.
    * @param {string} boardId - The board ID.
    * @param {string} token - API token.
-   * @param {Object} [listIds] - Optional. { currentWorkListId, releasedListId } for cycle time column.
+   * @param {Object} [listIds] - Optional. { currentWorkListId, releasedListId, qaListId } for cycle time and QA columns.
    * @returns {Promise<Object>} Aggregated data structure.
    */
   async function aggregateCardData(
@@ -77,10 +78,12 @@
     token,
     listIds = {},
   ) {
-    const { currentWorkListId, releasedListId } = listIds;
+    const { currentWorkListId, releasedListId, qaListId } = listIds;
     const hasCycleTimeColumn = Boolean(currentWorkListId && releasedListId);
+    const hasQaColumn = Boolean(qaListId);
     let totalCycleTimeSum = 0;
     let totalCycleTimeCount = 0;
+    let totalQaTimesSum = 0;
 
     const customFields = await api.fetchBoardCustomFields(boardId, token);
     const daysToReleaseField = customFields.find(
@@ -161,6 +164,7 @@
             pastDue: 0,
             total: 0,
             ...(hasCycleTimeColumn && { cycleTimeSum: 0, cycleTimeCount: 0 }),
+            ...(hasQaColumn && { qaTimesSum: 0 }),
           };
         }
         incrementMemberCounts(
@@ -183,6 +187,7 @@
               pastDue: 0,
               total: 0,
               ...(hasCycleTimeColumn && { cycleTimeSum: 0, cycleTimeCount: 0 }),
+              ...(hasQaColumn && { qaTimesSum: 0 }),
             };
           }
           incrementMemberCounts(
@@ -219,6 +224,19 @@
           totalCycleTimeSum += cycleDays;
           totalCycleTimeCount += 1;
         }
+      }
+
+      if (hasQaColumn) {
+        const qaCount = getCountOfCardListEntries(actions, card.id, qaListId);
+        const idsToUpdate =
+          memberIds.length === 0 ? ["unassigned"] : memberIds;
+
+        for (const memberId of idsToUpdate) {
+          if (memberData[memberId]) {
+            memberData[memberId].qaTimesSum += qaCount;
+          }
+        }
+        totalQaTimesSum += qaCount;
       }
     }
 
@@ -261,6 +279,12 @@
       result.totalCycleTimeCount = totalCycleTimeCount;
     }
 
+    if (hasQaColumn) {
+      result.hasQaColumn = true;
+      result.totalQaTimesSum = totalQaTimesSum;
+      result.totalCards = cards.length;
+    }
+
     return result;
   }
 
@@ -298,6 +322,9 @@
       hasCycleTimeColumn = false,
       totalCycleTimeSum = 0,
       totalCycleTimeCount = 0,
+      hasQaColumn = false,
+      totalQaTimesSum = 0,
+      totalCards = 0,
     } = aggregatedData;
 
     const header = ["Member"];
@@ -314,6 +341,9 @@
     header.push("On Time", "Past Due", "Total Cards");
     if (hasCycleTimeColumn) {
       header.push("Avg days (current → released)");
+    }
+    if (hasQaColumn) {
+      header.push("Avg QA times");
     }
 
     const rows = [header.map(escapeCSV).join(",")];
@@ -380,6 +410,14 @@
         row.push(escapeCSV(cycleTimeDisplay));
       }
 
+      if (hasQaColumn) {
+        const avgQa =
+          data.total > 0 ? data.qaTimesSum / data.total : null;
+        const avgQaDisplay =
+          avgQa == null ? "" : Number(avgQa.toFixed(1));
+        row.push(escapeCSV(avgQaDisplay));
+      }
+
       totals.onTime += data.onTime;
       totals.pastDue += data.pastDue;
       totals.total += data.total;
@@ -414,6 +452,14 @@
         overallAvgValue == null ? "" : hasOverallValue;
 
       totalsRow.push(escapeCSV(overallCycleTimeDisplay));
+    }
+
+    if (hasQaColumn) {
+      const overallAvgQa =
+        totalCards > 0 ? totalQaTimesSum / totalCards : null;
+      const overallAvgQaDisplay =
+        overallAvgQa == null ? "" : Number(overallAvgQa.toFixed(1));
+      totalsRow.push(escapeCSV(overallAvgQaDisplay));
     }
 
     rows.push(totalsRow.join(","));
@@ -481,10 +527,12 @@
 
       const currentWorkListId = await api.getCurrentWorkListId(t);
       const releasedListId = await api.getReleasedListId(t);
-      const listIds =
-        currentWorkListId && releasedListId
-          ? { currentWorkListId, releasedListId }
-          : {};
+      const qaListId = await api.getQaListId(t);
+      const listIds = {
+        ...(currentWorkListId && { currentWorkListId }),
+        ...(releasedListId && { releasedListId }),
+        ...(qaListId && { qaListId }),
+      };
 
       const aggregatedData = await aggregateCardData(
         cards,

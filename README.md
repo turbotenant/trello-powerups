@@ -158,12 +158,14 @@ https://turbotenant.github.io/trello-powerups/list-report/
 trello-powerups/
 ├── shared/                      # Shared utilities
 │   ├── auth-helpers.js         # Authorization helpers
-│   └── date-helpers.js         # Business time calculations
+│   ├── date-helpers.js         # Business time calculations
+│   └── trello-api.js           # Shared Trello API helpers
 ├── time-in-list/               # Time in List Power-Up
 │   ├── authorize.html          # Authorization page
 │   ├── constants.js            # App configuration
 │   ├── index.html              # Main UI
 │   ├── power-up.js             # Power-Up logic
+│   ├── settings.html           # Auto-pause lists configuration
 │   └── style.css               # Styles
 ├── start-case/                 # Start Case Power-Up
 │   ├── authorize.html          # Authorization page
@@ -174,6 +176,9 @@ trello-powerups/
     ├── authorize.html          # Authorization page
     ├── constants.js            # App configuration
     ├── index.html              # Connector entry
+    ├── list-report-api.js      # Trello API and board storage
+    ├── list-report-helpers.js  # Card/date and custom field helpers
+    ├── list-report-report.js   # Aggregation, CSV generation, report flow
     ├── list-selection.html     # List picker popup
     ├── power-up.js             # Power-Up logic
     └── settings.html           # Board settings (current work / released list)
@@ -195,6 +200,34 @@ trello-powerups/
 - `addBusinessDays(startDate, daysToAdd)`: Adds business days to a date
 - `getHolidaysForYear(year)`: Generates holiday dates for a year
 - `isBusinessDay(date, holidaysByYear)`: Checks if date is a business day
+
+#### Trello API (`shared/trello-api.js`)
+
+- `fetchBoardLists(boardId, token)`: Fetches all lists for a board
+- `fetchCardActions(cardId, token, filter)`: Fetches card actions (e.g. list movements, createCard)
+
+### List Report Module Structure
+
+The List Report Power-Up is split into API, helpers, and report modules:
+
+#### List Report API (`list-report/list-report-api.js`)
+
+- Board storage for current work list and released list IDs
+- Batched card fetching with rate limiting
+- Trello API calls for cards, custom fields, and member data
+
+#### List Report Helpers (`list-report/list-report-helpers.js`)
+
+- `getCardCreationDate(cardId)`: Extracts creation timestamp from Trello card ID
+- `getListMovementsChronological(actions, cardId)`: Returns list movements in chronological order
+- Card completion date and cycle-time calculations
+- Custom field value extraction (Size, Days to Release)
+
+#### List Report Report (`list-report/list-report-report.js`)
+
+- Member-level aggregation (sizes, days to release, on-time, past-due)
+- CSV generation and download
+- Report flow orchestration
 
 ### Dependencies
 

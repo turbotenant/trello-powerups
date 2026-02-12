@@ -39,6 +39,7 @@ if (currentPath.includes("settings.html")) {
         }
         const currentWorkListId = await ListReport.api.getCurrentWorkListId(t);
         const releasedListId = await ListReport.api.getReleasedListId(t);
+        const qaListId = await ListReport.api.getQaListId(t);
 
         const optionsHtml = (selectedId) =>
           '<option value="">— None —</option>' +
@@ -60,6 +61,11 @@ if (currentPath.includes("settings.html")) {
             <p>Choose the list that represents released/done work.</p>
             <select id="released-list-select">${optionsHtml(releasedListId)}</select>
           </div>
+          <div class="settings-section">
+            <h3>QA list</h3>
+            <p>Choose the list that represents QA (used for "Avg QA times" in the report).</p>
+            <select id="qa-list-select">${optionsHtml(qaListId)}</select>
+          </div>
           <button type="button" id="save-list-report-settings-btn" class="save-btn">Save</button>
         `;
 
@@ -74,15 +80,18 @@ if (currentPath.includes("settings.html")) {
             const releasedSelect = document.getElementById(
               "released-list-select",
             );
+            const qaListSelect = document.getElementById("qa-list-select");
             const selectedCurrentWork = currentWorkSelect
               ? currentWorkSelect.value
               : "";
             const selectedReleased = releasedSelect ? releasedSelect.value : "";
+            const selectedQaList = qaListSelect ? qaListSelect.value : "";
             await ListReport.api.setCurrentWorkListId(
               t,
               selectedCurrentWork || null,
             );
             await ListReport.api.setReleasedListId(t, selectedReleased || null);
+            await ListReport.api.setQaListId(t, selectedQaList || null);
             saveBtn.textContent = "Saved!";
             setTimeout(() => {
               saveBtn.textContent = "Save";
@@ -159,7 +168,7 @@ if (currentPath.includes("settings.html")) {
         return t.popup({
           title: "List Report Settings",
           url: "./settings.html",
-          height: 400,
+          height: 480,
         });
       },
     },

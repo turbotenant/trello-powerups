@@ -82,6 +82,18 @@
   };
 
   /**
+   * Gets the number of times a card entered a specific list.
+   * @param {Array} actions - Array of Trello actions for the card.
+   * @param {string} cardId - The card ID.
+   * @param {string} listId - The list ID.
+   * @returns {number} Count of entrances into the list.
+   */
+  const getCountOfCardListEntries = (actions, cardId, listId) => {
+    const movements = getListMovementsChronological(actions, cardId);
+    return movements.filter((m) => m.listId === listId).length;
+  };
+
+  /**
    * Gets the most recent time a card entered a list before a given date.
    * @param {Array} actions - Array of Trello actions for the card.
    * @param {string} cardId - The card ID.
@@ -245,6 +257,7 @@
     getCardCreationDate,
     getListMovementsChronological,
     getFirstCardListEntryDate,
+    getCountOfCardListEntries,
     getCardListEntryDateBefore,
     getDaysFromCurrentWorkToReleased,
     getCardListEntryDate,
