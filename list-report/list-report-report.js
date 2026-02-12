@@ -583,7 +583,7 @@
       if (!token) {
         return showAuthorizePopup(t);
       }
-      return t.modal({
+      return t.boardBar({
         title: "Generate Board Report",
         url: "./list-selection.html",
         height: 300,

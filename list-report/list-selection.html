@@ -142,9 +142,9 @@
         // Generate report directly from here
         await generateReport(t, selectedListId, listName);
         
-        // Close modal after a short delay to show success
+        // Close board bar after a short delay to show success
         setTimeout(() => {
-          t.closeModal();
+          t.closeBoardBar();
         }, 500);
       } catch (error) {
         console.error('Error generating report:', error);
