@@ -159,14 +159,14 @@ if (currentPath.includes("settings.html")) {
         return [
           {
             icon: { dark: ICON_URL, light: ICON_URL },
-            text: "Generate List Report",
+            text: "Generate Board Report",
             callback: ListReport.report.generateReportCallback,
           },
         ];
       },
       "show-settings": function (t, options) {
         return t.popup({
-          title: "List Report Settings",
+          title: "Board Report Settings",
           url: "./settings.html",
           height: 480,
         });

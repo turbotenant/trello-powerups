@@ -228,8 +228,7 @@
 
       if (hasQaColumn) {
         const qaCount = getCountOfCardListEntries(actions, card.id, qaListId);
-        const idsToUpdate =
-          memberIds.length === 0 ? ["unassigned"] : memberIds;
+        const idsToUpdate = memberIds.length === 0 ? ["unassigned"] : memberIds;
 
         for (const memberId of idsToUpdate) {
           if (memberData[memberId]) {
@@ -411,10 +410,8 @@
       }
 
       if (hasQaColumn) {
-        const avgQa =
-          data.total > 0 ? data.qaTimesSum / data.total : null;
-        const avgQaDisplay =
-          avgQa == null ? "" : Number(avgQa.toFixed(1));
+        const avgQa = data.total > 0 ? data.qaTimesSum / data.total : null;
+        const avgQaDisplay = avgQa == null ? "" : Number(avgQa.toFixed(1));
         row.push(escapeCSV(avgQaDisplay));
       }
 
@@ -455,8 +452,7 @@
     }
 
     if (hasQaColumn) {
-      const overallAvgQa =
-        totalCards > 0 ? totalQaTimesSum / totalCards : null;
+      const overallAvgQa = totalCards > 0 ? totalQaTimesSum / totalCards : null;
       const overallAvgQaDisplay =
         overallAvgQa == null ? "" : Number(overallAvgQa.toFixed(1));
       totalsRow.push(escapeCSV(overallAvgQaDisplay));
@@ -587,8 +583,8 @@
       if (!token) {
         return showAuthorizePopup(t);
       }
-      return t.popup({
-        title: "Generate List Report",
+      return t.modal({
+        title: "Generate Board Report",
         url: "./list-selection.html",
         height: 300,
       });

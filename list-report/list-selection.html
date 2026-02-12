@@ -56,7 +56,7 @@
   </style>
 </head>
 <body>
-  <h3>Generate List Report v<span id="version"></span></h3>
+  <h3>Generate Board Report v<span id="version"></span></h3>
   <p>Select a list to generate a report:</p>
   <select id="list-select">
     <option value="">Loading lists...</option>
@@ -142,9 +142,9 @@
         // Generate report directly from here
         await generateReport(t, selectedListId, listName);
         
-        // Close popup after a short delay to show success
+        // Close modal after a short delay to show success
         setTimeout(() => {
-          t.closePopup();
+          t.closeModal();
         }, 500);
       } catch (error) {
         console.error('Error generating report:', error);

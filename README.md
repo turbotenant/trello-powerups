@@ -124,7 +124,7 @@ The report can show breakdowns by **Size** and **Days to Release** if the board 
 1. Enable the Power-Up on your board.
 2. Authorize the Power-Up to access your Trello data.
 3. (Optional) Configure **Current work list** and **Released list** in Settings for the cycle-time column.
-4. Click the board button **Generate List Report**, select a list, and download the CSV.
+4. Click the board button **Generate Board Report**, select a list, and download the CSV.
 
 ## Installation
 
@@ -307,7 +307,7 @@ const HOLIDAY_RULES = {
 ### List Report
 
 - `on-enable`: Initial authorization
-- `board-buttons`: Generate List Report button
+- `board-buttons`: Generate Board Report button
 - `show-settings`: Board settings (current work list, released list)
 
 ## Security
