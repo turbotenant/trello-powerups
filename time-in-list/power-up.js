@@ -82,7 +82,7 @@ const buildCardHistory = (actions, cardId) => {
     .filter(
       (action) =>
         action.type === "createCard" ||
-        (action.type === "updateCard" && action.data.listAfter)
+        (action.type === "updateCard" && action.data.listAfter),
     )
     .map((action) => ({
       listName:
@@ -331,7 +331,7 @@ const pauseResumeCallback = async (t) => {
 const calculatePausedMinutesInPeriod = (
   pauseEvents,
   periodStart,
-  periodEnd
+  periodEnd,
 ) => {
   if (!pauseEvents || pauseEvents.length === 0) {
     return 0;
@@ -374,22 +374,17 @@ const calculateCurrentListTime = async (t) => {
 
   const card = await t.card("id");
 
-  // Fetch ALL actions to build complete history
-  const response = await fetch(
-    `https://api.trello.com/1/cards/${card.id}/actions?filter=updateCard:idList,createCard&key=${APP_KEY}&token=${token}`
-  );
-
-  // Check if the response is OK before parsing JSON
-  if (!response.ok) {
-    console.error(
-      "❌ API request failed:",
-      response.status,
-      response.statusText
+  let actions;
+  try {
+    actions = await TrelloApi.fetchCardActions(
+      card.id,
+      token,
+      "updateCard:idList,createCard",
     );
+  } catch (err) {
+    console.error("❌ API request failed:", err);
     return null;
   }
-
-  const actions = await response.json();
 
   // Build complete history to find when card entered current list
   const history = buildCardHistory(actions, card.id);
@@ -417,7 +412,7 @@ const calculateCurrentListTime = async (t) => {
   const pausedMinutes = calculatePausedMinutesInPeriod(
     pauseEvents,
     startDate,
-    now
+    now,
   );
 
   // Subtract only the paused time that occurred in the current list
@@ -450,6 +445,12 @@ if (window.location.href.includes("settings.html")) {
         const container = document.getElementById("pause-lists-settings");
         if (!container) return;
 
+        const versionSpan = document.getElementById("version");
+        if (versionSpan) {
+          versionSpan.textContent =
+            typeof VERSION !== "undefined" ? VERSION : "";
+        }
+
         const context = t.getContext();
         const boardId = context && context.board;
         if (!boardId) {
@@ -457,16 +458,14 @@ if (window.location.href.includes("settings.html")) {
           return;
         }
 
-        const listsResponse = await fetch(
-          `https://api.trello.com/1/boards/${boardId}/lists?key=${APP_KEY}&token=${token}`
-        );
-        if (!listsResponse.ok) {
+        let lists;
+        try {
+          lists = await TrelloApi.fetchBoardLists(boardId, token);
+        } catch (err) {
           container.innerHTML =
             '<p class="settings-error">Could not load lists.</p>';
           return;
         }
-
-        const lists = await listsResponse.json();
         const pauseListIds = await getPauseListsConfig(t);
 
         let html = `
@@ -483,7 +482,7 @@ if (window.location.href.includes("settings.html")) {
                       }" ${pauseListIds.includes(list.id) ? "checked" : ""}>
                       <span>${list.name}</span>
                     </label>
-                   </li>`
+                   </li>`,
               )
               .join("")}
           </ul>
@@ -495,10 +494,10 @@ if (window.location.href.includes("settings.html")) {
         if (saveBtn) {
           saveBtn.addEventListener("click", async () => {
             const checkboxes = container.querySelectorAll(
-              ".pause-list-checkbox:checked"
+              ".pause-list-checkbox:checked",
             );
             const selectedListIds = Array.from(checkboxes).map((el) =>
-              el.getAttribute("data-list-id")
+              el.getAttribute("data-list-id"),
             );
             await setPauseListsConfig(t, selectedListIds);
             saveBtn.textContent = "Saved!";
@@ -606,7 +605,7 @@ if (window.location.href.includes("settings.html")) {
           const pausedMinutes = calculatePausedMinutesInPeriod(
             pauseEvents,
             startDate,
-            endDate
+            endDate,
           );
 
           // Subtract paused time from total time
@@ -641,7 +640,7 @@ if (window.location.href.includes("settings.html")) {
         // Total minutes for percentage (from aggregated data)
         const totalMinutes = aggregatedList.reduce(
           (sum, item) => sum + item.minutes,
-          0
+          0,
         );
 
         // Second pass: render with progress bars
@@ -709,29 +708,23 @@ if (window.location.href.includes("settings.html")) {
         return;
       }
 
-      // We have a token, now get the card and fetch actions
       const card = await t.card("id");
 
-      const response = await fetch(
-        `https://api.trello.com/1/cards/${card.id}/actions?filter=updateCard:idList,createCard&key=${APP_KEY}&token=${token}`
-      );
-
-      // Check if the response is OK before parsing JSON
-      if (!response.ok) {
-        console.error(
-          "❌ API request failed:",
-          response.status,
-          response.statusText
+      let actions;
+      try {
+        actions = await TrelloApi.fetchCardActions(
+          card.id,
+          token,
+          "updateCard:idList,createCard",
         );
-        // Token might be invalid, clear it and show auth UI
+      } catch (err) {
+        console.error("❌ API request failed:", err);
         await t.remove("organization", "private", "token").catch(() => {
           return t.remove("board", "private", "token");
         });
         showAuthUI();
         return;
       }
-
-      const actions = await response.json();
 
       const history = buildCardHistory(actions, card.id);
 
@@ -775,7 +768,7 @@ if (window.location.href.includes("settings.html")) {
           content: {
             type: "iframe",
             url: t.signUrl(
-              "https://turbotenant.github.io/trello-powerups/time-in-list/index.html"
+              "https://turbotenant.github.io/trello-powerups/time-in-list/index.html",
             ),
             height: "auto",
           },
@@ -871,7 +864,7 @@ if (window.location.href.includes("settings.html")) {
     {
       appKey: APP_KEY,
       appName: APP_NAME,
-    }
+    },
   );
 
   // console.log("✨ Power-Up Time in List initialization complete");
