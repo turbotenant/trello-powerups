@@ -13,15 +13,46 @@
     h3 {
       margin-top: 0;
     }
-    select {
-      width: 100%;
-      padding: 8px;
-      margin: 10px 0;
+    .list-checkbox-list {
+      list-style: none;
+      margin: 0 0 12px;
+      padding: 0;
+      max-height: 280px;
+      overflow-y: auto;
       border: 1px solid #ddd;
       border-radius: 3px;
+      padding: 8px;
+    }
+    .list-checkbox-item {
+      padding: 6px 0;
+    }
+    .list-checkbox-item label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
       font-size: 14px;
     }
-    button {
+    .list-checkbox {
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .toggle-all-btn {
+      background: none;
+      border: none;
+      color: #0079bf;
+      cursor: pointer;
+      font-size: 13px;
+      padding: 4px 0;
+      margin-bottom: 8px;
+      width: auto;
+    }
+    .toggle-all-btn:hover {
+      text-decoration: underline;
+    }
+    button.primary-btn {
       background-color: #0079bf;
       color: white;
       border: none;
@@ -32,7 +63,7 @@
       width: 100%;
       margin-top: 10px;
     }
-    button:hover {
+    button.primary-btn:hover {
       background-color: #026aa7;
     }
     button:disabled {
@@ -62,11 +93,12 @@
 <body>
   <div class="board-bar-content">
     <h3>Generate Board Report v<span id="version"></span></h3>
-    <p>Select a list to generate a report for:</p>
-    <select id="list-select">
-      <option value="">Loading lists...</option>
-    </select>
-    <button id="generate-btn" disabled>Generate Report</button>
+    <p>Select lists to generate a report for:</p>
+    <button type="button" class="toggle-all-btn" id="toggle-all-btn" style="display: none;">Select All</button>
+    <ul id="list-checkbox-container" class="list-checkbox-list">
+      <li>Loading lists...</li>
+    </ul>
+    <button type="button" id="generate-btn" class="primary-btn" disabled>Generate Report</button>
     <div id="loading">Generating report, please wait...</div>
     <div id="error"></div>
   </div>
@@ -85,7 +117,8 @@
       appName: APP_NAME,
     });
 
-    var listSelect = document.getElementById('list-select');
+    var listCheckboxContainer = document.getElementById('list-checkbox-container');
+    var toggleAllBtn = document.getElementById('toggle-all-btn');
     var generateBtn = document.getElementById('generate-btn');
     var loadingDiv = document.getElementById('loading');
     var errorDiv = document.getElementById('error');
@@ -102,25 +135,22 @@
           return;
         }
 
-        const context = t.getContext();
-        const boardId = context && context.board;
-        if (!boardId) {
-          errorDiv.textContent = 'Could not get board context.';
-          errorDiv.style.display = 'block';
-          return;
-        }
+        const lists = await ListReport.api.fetchBoardLists(t, token);
 
-        const lists = await TrelloApi.fetchBoardLists(boardId, token);
-        
-        listSelect.innerHTML = '<option value="">Select a list...</option>';
-        lists.forEach(list => {
-          const option = document.createElement('option');
-          option.value = list.id;
-          option.textContent = list.name;
-          listSelect.appendChild(option);
-        });
+        listCheckboxContainer.innerHTML = lists
+          .map(
+            (list) =>
+              '<li class="list-checkbox-item">' +
+              '<label>' +
+              '<input type="checkbox" class="list-checkbox" data-list-id="' + list.id + '" data-list-name="' + escapeHtml(list.name) + '">' +
+              '<span>' + escapeHtml(list.name) + '</span>' +
+              '</label>' +
+              '</li>'
+          )
+          .join('');
 
-        listSelect.disabled = false;
+        toggleAllBtn.style.display = 'inline-block';
+        toggleAllBtn.textContent = 'Select All';
         generateBtn.disabled = false;
       } catch (error) {
         console.error('Error loading lists:', error);
@@ -129,27 +159,41 @@
       }
     }
 
+    function escapeHtml(text) {
+      var div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    toggleAllBtn.addEventListener('click', function() {
+      var checkboxes = listCheckboxContainer.querySelectorAll('.list-checkbox');
+      var allChecked = Array.from(checkboxes).every(function(cb) { return cb.checked; });
+      checkboxes.forEach(function(cb) { cb.checked = !allChecked; });
+      toggleAllBtn.textContent = allChecked ? 'Select All' : 'Deselect All';
+    });
+
     generateBtn.addEventListener('click', async function() {
-      const selectedListId = listSelect.value;
-      if (!selectedListId) {
-        errorDiv.textContent = 'Please select a list.';
+      var checked = listCheckboxContainer.querySelectorAll('.list-checkbox:checked');
+      if (!checked.length) {
+        errorDiv.textContent = 'Please select at least one list.';
         errorDiv.style.display = 'block';
         return;
       }
 
+      var selectedLists = Array.from(checked).map(function(cb) {
+        return { id: cb.getAttribute('data-list-id'), name: cb.getAttribute('data-list-name') };
+      });
+
       generateBtn.disabled = true;
-      listSelect.disabled = true;
+      listCheckboxContainer.querySelectorAll('.list-checkbox').forEach(function(cb) { cb.disabled = true; });
+      toggleAllBtn.disabled = true;
       loadingDiv.style.display = 'block';
       errorDiv.style.display = 'none';
 
       try {
-        const listName = listSelect.options[listSelect.selectedIndex].textContent;
-        
-        // Generate report directly from here
-        await generateReport(t, selectedListId, listName);
-        
-        // Close board bar after a short delay to show success
-        setTimeout(() => {
+        await generateReport(t, selectedLists);
+
+        setTimeout(function() {
           t.closeBoardBar();
         }, 500);
       } catch (error) {
@@ -157,7 +201,8 @@
         errorDiv.textContent = 'Error generating report: ' + error.message;
         errorDiv.style.display = 'block';
         generateBtn.disabled = false;
-        listSelect.disabled = false;
+        listCheckboxContainer.querySelectorAll('.list-checkbox').forEach(function(cb) { cb.disabled = false; });
+        toggleAllBtn.disabled = false;
         loadingDiv.style.display = 'none';
       }
     });

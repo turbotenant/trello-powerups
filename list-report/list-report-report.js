@@ -489,10 +489,9 @@
   /**
    * Main callback to generate the report.
    * @param {Object} t - The Trello Power-Up interface.
-   * @param {string} listId - The selected list ID.
-   * @param {string} listName - The selected list name.
+   * @param {Array<{id: string, name: string}>} selectedLists - Selected lists (id and name for each).
    */
-  async function generateReport(t, listId, listName) {
+  async function generateReport(t, selectedLists) {
     try {
       const token = await getAuthToken(t);
       if (!token) {
@@ -505,17 +504,35 @@
         throw new Error("Could not get board context");
       }
 
+      if (!selectedLists || selectedLists.length === 0) {
+        return t.alert({
+          message: "Please select at least one list.",
+          duration: 5,
+          display: "warning",
+        });
+      }
+
       t.alert({
         message: "Fetching cards and generating report...",
         duration: 2,
         display: "info",
       });
 
-      const cards = await api.fetchListCards(listId, token);
+      const allCards = [];
+      const seenCardIds = new Set();
+      for (const list of selectedLists) {
+        const listCards = await api.fetchListCards(list.id, token);
+        for (const card of listCards) {
+          if (!seenCardIds.has(card.id)) {
+            seenCardIds.add(card.id);
+            allCards.push(card);
+          }
+        }
+      }
 
-      if (cards.length === 0) {
+      if (allCards.length === 0) {
         return t.alert({
-          message: "The selected list has no cards.",
+          message: "The selected lists have no cards.",
           duration: 5,
           display: "warning",
         });
@@ -530,9 +547,10 @@
         ...(qaListId && { qaListId }),
       };
 
+      const firstListId = selectedLists[0].id;
       const aggregatedData = await aggregateCardData(
-        cards,
-        listId,
+        allCards,
+        firstListId,
         boardId,
         token,
         listIds,
@@ -540,15 +558,16 @@
 
       const csvContent = generateCSV(aggregatedData);
       const timestamp = dayjs().format("YYYY-MM-DD_HH-mm-ss");
-      const sanitizedListName = listName
-        .replace(/[^a-z0-9]/gi, "_")
-        .toLowerCase();
+      const sanitizedListName =
+        selectedLists.length === 1
+          ? selectedLists[0].name.replace(/[^a-z0-9]/gi, "_").toLowerCase()
+          : `combined-${selectedLists.length}-lists`;
       const filename = `list-report-${sanitizedListName}-${timestamp}.csv`;
 
       downloadCSV(csvContent, filename);
 
       t.alert({
-        message: `Report generated successfully! ${cards.length} cards processed.`,
+        message: `Report generated successfully! ${allCards.length} cards processed.`,
         duration: 3,
         display: "success",
       });
@@ -586,7 +605,7 @@
       return t.boardBar({
         title: "Generate Board Report",
         url: "./list-selection.html",
-        height: 300,
+        height: 500,
       });
     } catch (error) {
       console.error("Error in generateReportCallback:", error);

@@ -21,17 +21,9 @@ if (currentPath.includes("settings.html")) {
         const container = document.getElementById("list-report-settings");
         if (!container) return;
 
-        const context = t.getContext();
-        const boardId = context && context.board;
-        if (!boardId) {
-          container.innerHTML =
-            '<p class="settings-error">Could not load board context.</p>';
-          return;
-        }
-
         let lists;
         try {
-          lists = await TrelloApi.fetchBoardLists(boardId, token);
+          lists = await ListReport.api.fetchBoardLists(t, token);
         } catch (err) {
           container.innerHTML =
             '<p class="settings-error">Could not load lists.</p>';

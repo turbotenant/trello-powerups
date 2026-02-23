@@ -1,14 +1,29 @@
-/* global APP_KEY, USE_SINGLE_CARD_FETCH */
+/* global APP_KEY, USE_SINGLE_CARD_FETCH, TrelloApi */
 
 /**
  * Trello API and board storage helpers for List Report.
- * Depends on: constants.js (APP_KEY, USE_SINGLE_CARD_FETCH).
+ * Depends on: constants.js (APP_KEY, USE_SINGLE_CARD_FETCH), shared/trello-api.js (TrelloApi).
  * Exposes ListReport.api.
  */
 (function () {
   "use strict";
 
   const BATCH_SIZE = 20;
+
+  /**
+   * Fetches all lists for the current board from context.
+   * @param {Object} t - The Trello Power-Up interface.
+   * @param {string} token - API token.
+   * @returns {Promise<Array>} Array of list objects.
+   */
+  const fetchBoardLists = async (t, token) => {
+    const context = t.getContext();
+    const boardId = context && context.board;
+    if (!boardId) {
+      throw new Error("Could not get board context");
+    }
+    return TrelloApi.fetchBoardLists(boardId, token);
+  };
   const DELAY_BETWEEN_BATCHES = 300;
   const DELAY_BETWEEN_REQUESTS = 150;
   const DELAY_BETWEEN_CARDS_SINGLE = 120;
@@ -307,6 +322,7 @@
 
   window.ListReport = window.ListReport || {};
   window.ListReport.api = {
+    fetchBoardLists,
     fetchListCards,
     fetchWithRetry,
     fetchCardActions,
