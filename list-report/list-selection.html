@@ -7,13 +7,13 @@
   <style>
     /* Constrain entire iframe content to 400px - Trello board bar container is always full width */
     html {
-      width: 100%;
+      width: 400px;
     }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
       padding: 20px;
       margin: 0 auto;
-      width: 100%;
+      width: 400px;
       max-width: 400px;
       box-sizing: border-box;
     }
@@ -95,16 +95,100 @@
       max-width: 400px;
       margin: 0 auto;
     }
+    .report-type-radio {
+      margin: 0 0 16px;
+      padding: 0;
+      list-style: none;
+    }
+    .report-type-radio li {
+      padding: 6px 0;
+    }
+    .report-type-radio label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .report-type-radio input {
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+    }
+    .card-journey-panel {
+      margin-bottom: 12px;
+    }
+    .card-journey-panel .form-row {
+      margin-bottom: 12px;
+    }
+    .card-journey-panel label {
+      display: block;
+      font-size: 13px;
+      margin-bottom: 4px;
+      font-weight: 500;
+    }
+    .card-journey-panel select {
+      width: 100%;
+      padding: 8px;
+      font-size: 14px;
+      border: 1px solid #ddd;
+      border-radius: 3px;
+      box-sizing: border-box;
+    }
+    .list-selection-panel,
+    .card-journey-panel {
+      display: none;
+    }
+    .list-selection-panel.visible,
+    .card-journey-panel.visible {
+      display: block;
+    }
   </style>
 </head>
 <body>
   <div class="board-bar-content">
     <h3>Generate Board Report v<span id="version"></span></h3>
-    <p>Select lists to generate a report for:</p>
-    <button type="button" class="toggle-all-btn" id="toggle-all-btn" style="display: none;">Select All</button>
-    <ul id="list-checkbox-container" class="list-checkbox-list">
-      <li>Loading lists...</li>
+
+    <p style="margin-bottom: 8px;">Report Type</p>
+    <ul class="report-type-radio" id="report-type-radios">
+      <li>
+        <label>
+          <input type="radio" name="report-type" value="list-report" id="report-type-list" checked>
+          <span>List Report</span>
+        </label>
+      </li>
+      <li>
+        <label>
+          <input type="radio" name="report-type" value="card-journey" id="report-type-card-journey">
+          <span>Card Journey</span>
+        </label>
+      </li>
     </ul>
+
+    <div id="list-selection-panel" class="list-selection-panel visible">
+      <p>Select lists to generate a report for:</p>
+      <button type="button" class="toggle-all-btn" id="toggle-all-btn" style="display: none;">Select All</button>
+      <ul id="list-checkbox-container" class="list-checkbox-list">
+        <li>Loading lists...</li>
+      </ul>
+    </div>
+
+    <div id="card-journey-panel" class="card-journey-panel">
+      <p>Select From and To lists to count card moves:</p>
+      <div class="form-row">
+        <label for="from-list-select">From</label>
+        <select id="from-list-select">
+          <option value="">— Select list —</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label for="to-list-select">To</label>
+        <select id="to-list-select">
+          <option value="">— Select list —</option>
+        </select>
+      </div>
+    </div>
+
     <button type="button" id="generate-btn" class="primary-btn" disabled>Generate Report</button>
     <div id="loading">Generating report, please wait...</div>
     <div id="error"></div>
@@ -117,104 +201,8 @@
   <script src="./list-report-helpers.js"></script>
   <script src="./list-report-api.js"></script>
   <script src="./list-report-report.js"></script>
+  <script src="./card-journey-report.js"></script>
   <script src="./power-up.js"></script>
-  <script>
-    var t = TrelloPowerUp.iframe({
-      appKey: APP_KEY,
-      appName: APP_NAME,
-    });
-
-    var listCheckboxContainer = document.getElementById('list-checkbox-container');
-    var toggleAllBtn = document.getElementById('toggle-all-btn');
-    var generateBtn = document.getElementById('generate-btn');
-    var loadingDiv = document.getElementById('loading');
-    var errorDiv = document.getElementById('error');
-    var versionSpan = document.getElementById('version');
-
-    versionSpan.textContent = VERSION;
-
-    async function loadLists() {
-      try {
-        const token = await getAuthToken(t);
-        if (!token) {
-          errorDiv.textContent = 'Not authorized. Please authorize the Power-Up first.';
-          errorDiv.style.display = 'block';
-          return;
-        }
-
-        const lists = await ListReport.api.fetchBoardLists(t, token);
-
-        listCheckboxContainer.innerHTML = lists
-          .map(
-            (list) =>
-              '<li class="list-checkbox-item">' +
-              '<label>' +
-              '<input type="checkbox" class="list-checkbox" data-list-id="' + list.id + '" data-list-name="' + escapeHtml(list.name) + '">' +
-              '<span>' + escapeHtml(list.name) + '</span>' +
-              '</label>' +
-              '</li>'
-          )
-          .join('');
-
-        toggleAllBtn.style.display = 'inline-block';
-        toggleAllBtn.textContent = 'Select All';
-        generateBtn.disabled = false;
-      } catch (error) {
-        console.error('Error loading lists:', error);
-        errorDiv.textContent = 'Error loading lists: ' + error.message;
-        errorDiv.style.display = 'block';
-      }
-    }
-
-    function escapeHtml(text) {
-      var div = document.createElement('div');
-      div.textContent = text;
-      return div.innerHTML;
-    }
-
-    toggleAllBtn.addEventListener('click', function() {
-      var checkboxes = listCheckboxContainer.querySelectorAll('.list-checkbox');
-      var allChecked = Array.from(checkboxes).every(function(cb) { return cb.checked; });
-      checkboxes.forEach(function(cb) { cb.checked = !allChecked; });
-      toggleAllBtn.textContent = allChecked ? 'Select All' : 'Deselect All';
-    });
-
-    generateBtn.addEventListener('click', async function() {
-      var checked = listCheckboxContainer.querySelectorAll('.list-checkbox:checked');
-      if (!checked.length) {
-        errorDiv.textContent = 'Please select at least one list.';
-        errorDiv.style.display = 'block';
-        return;
-      }
-
-      var selectedLists = Array.from(checked).map(function(cb) {
-        return { id: cb.getAttribute('data-list-id'), name: cb.getAttribute('data-list-name') };
-      });
-
-      generateBtn.disabled = true;
-      listCheckboxContainer.querySelectorAll('.list-checkbox').forEach(function(cb) { cb.disabled = true; });
-      toggleAllBtn.disabled = true;
-      loadingDiv.style.display = 'block';
-      errorDiv.style.display = 'none';
-
-      try {
-        await generateReport(t, selectedLists);
-
-        setTimeout(function() {
-          t.closeBoardBar();
-        }, 500);
-      } catch (error) {
-        console.error('Error generating report:', error);
-        errorDiv.textContent = 'Error generating report: ' + error.message;
-        errorDiv.style.display = 'block';
-        generateBtn.disabled = false;
-        listCheckboxContainer.querySelectorAll('.list-checkbox').forEach(function(cb) { cb.disabled = false; });
-        toggleAllBtn.disabled = false;
-        loadingDiv.style.display = 'none';
-      }
-    });
-
-    loadLists();
-  </script>
+  <script src="./list-selection.js"></script>
 </body>
 </html>

@@ -86,6 +86,25 @@
   };
 
   /**
+   * Fetches all cards on a board.
+   * @param {string} boardId - The board ID.
+   * @param {string} token - API token.
+   * @returns {Promise<Array>} Array of card objects.
+   */
+  const fetchBoardCards = async (boardId, token) => {
+    const response = await fetch(
+      `https://api.trello.com/1/boards/${boardId}/cards?key=${APP_KEY}&token=${token}`,
+    );
+
+    if (!response.ok) {
+      console.error(`Failed to fetch board cards: ${await response.text()}`);
+      throw new Error(`Failed to fetch board cards: ${response.status}`);
+    }
+
+    return await response.json();
+  };
+
+  /**
    * Fetches all cards from a specific list.
    * @param {string} listId - The list ID.
    * @param {string} token - API token.
@@ -342,6 +361,7 @@
   window.ListReport = window.ListReport || {};
   window.ListReport.api = {
     fetchBoardLists,
+    fetchBoardCards,
     fetchBoardMembers,
     fetchListCards,
     fetchWithRetry,

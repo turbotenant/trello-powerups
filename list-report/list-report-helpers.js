@@ -94,6 +94,31 @@
   };
 
   /**
+   * Returns moves from one list to another (who performed each move).
+   * @param {Array} actions - Array of Trello actions for the card.
+   * @param {string} fromListId - The source list ID.
+   * @param {string} toListId - The destination list ID.
+   * @returns {Array<{memberId: string}>} One entry per move; memberId is idMemberCreator or "unassigned" if missing.
+   */
+  const getMovesFromToList = (actions, fromListId, toListId) => {
+    return actions
+      .filter(
+        (action) =>
+          action.type === "updateCard" &&
+          action.data &&
+          action.data.listBefore &&
+          action.data.listAfter &&
+          action.data.listBefore.id === fromListId &&
+          action.data.listAfter.id === toListId,
+      )
+      .map((action) => {
+        const memberId =
+          action.memberCreator?.id || action.idMemberCreator || "unassigned";
+        return { memberId };
+      });
+  };
+
+  /**
    * Gets the most recent time a card entered a list before a given date.
    * @param {Array} actions - Array of Trello actions for the card.
    * @param {string} cardId - The card ID.
@@ -258,6 +283,7 @@
     getListMovementsChronological,
     getFirstCardListEntryDate,
     getCountOfCardListEntries,
+    getMovesFromToList,
     getCardListEntryDateBefore,
     getDaysFromCurrentWorkToReleased,
     getCardListEntryDate,
