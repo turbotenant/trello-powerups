@@ -34,6 +34,21 @@
       font-size: 14px;
       box-sizing: border-box;
     }
+    .form-group.checkbox-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .form-group.checkbox-group input[type="checkbox"] {
+      width: auto;
+      margin: 0;
+      cursor: pointer;
+    }
+    .form-group.checkbox-group label {
+      margin-bottom: 0;
+      cursor: pointer;
+      font-weight: 500;
+    }
     .date-row {
       display: flex;
       gap: 12px;
@@ -49,7 +64,7 @@
       border-radius: 3px;
       font-size: 14px;
       cursor: pointer;
-      width: 100%;
+      width: 250px;
       margin-top: 10px;
     }
     button.primary-btn:hover {
@@ -118,7 +133,7 @@
       border: none;
       color: #0079bf;
       cursor: pointer;
-      font-size: 13px;
+      font-size: 14px;
       padding: 4px 0;
     }
     .copy-btn:hover {
@@ -148,6 +163,11 @@
       </select>
     </div>
 
+    <div class="form-group checkbox-group">
+      <input type="checkbox" id="include-member-name">
+      <label for="include-member-name">Include member name</label>
+    </div>
+
     <button type="button" id="generate-btn" class="primary-btn" disabled>Generate</button>
   </div>
 
@@ -157,7 +177,7 @@
       <button type="button" class="copy-btn" id="copy-btn">Copy to clipboard</button>
     </div>
     <textarea id="output-text"></textarea>
-    <button type="button" id="back-btn" class="secondary-btn">New search</button>
+    <button type="button" id="back-btn" class="primary-btn">New search</button>
   </div>
 
   <div id="loading">Fetching cards, please wait...</div>
@@ -182,6 +202,7 @@
     var startDateInput = document.getElementById('start-date');
     var endDateInput = document.getElementById('end-date');
     var customFieldSelect = document.getElementById('custom-field-select');
+    var includeMemberNameCheckbox = document.getElementById('include-member-name');
     var generateBtn = document.getElementById('generate-btn');
     var loadingDiv = document.getElementById('loading');
     var errorDiv = document.getElementById('error');
@@ -271,6 +292,7 @@
       customFieldSelect.disabled = true;
       startDateInput.disabled = true;
       endDateInput.disabled = true;
+      includeMemberNameCheckbox.disabled = true;
       loadingDiv.style.display = 'block';
 
       try {
@@ -302,9 +324,36 @@
           return;
         }
 
-        var cardNames = matchingCards.map(function (item) {
-          return item.card.name;
-        });
+        var cardNames;
+        if (includeMemberNameCheckbox.checked) {
+          var context = t.getContext();
+          var boardId = context && context.board;
+          if (!boardId) {
+            showError('Could not get board context.');
+            resetForm();
+            return;
+          }
+          var boardMembers = await ListReport.api.fetchBoardMembers(boardId, token);
+          var memberMap = {};
+          boardMembers.forEach(function (m) {
+            memberMap[m.id] = m.fullName || m.username || m.id;
+          });
+          cardNames = matchingCards.map(function (item) {
+            var card = item.card;
+            var memberIds = card.idMembers || [];
+            var memberNames = memberIds
+              .map(function (id) { return memberMap[id]; })
+              .filter(Boolean);
+            var prefix = memberNames.length > 0
+              ? memberNames.join(', ') + ' - '
+              : '';
+            return prefix + card.name;
+          });
+        } else {
+          cardNames = matchingCards.map(function (item) {
+            return item.card.name;
+          });
+        }
 
         var text = ReleaseFilter.helpers.formatReleaseNotes(cardNames, startDate, endDate);
 
@@ -326,6 +375,7 @@
       customFieldSelect.disabled = false;
       startDateInput.disabled = false;
       endDateInput.disabled = false;
+      includeMemberNameCheckbox.disabled = false;
       loadingDiv.style.display = 'none';
     }
 

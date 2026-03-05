@@ -98,9 +98,14 @@
    * @returns {string}
    */
   const formatReleaseNotes = (cardNames, startDateStr, endDateStr) => {
-    const dateRange = startDateStr
-      ? "from " + startDateStr + " to " + endDateStr
-      : "up to " + endDateStr;
+    let dateRange;
+    if (startDateStr && startDateStr === endDateStr) {
+      dateRange = endDateStr;
+    } else if (startDateStr) {
+      dateRange = "from " + startDateStr + " to " + endDateStr;
+    } else {
+      dateRange = "up to " + endDateStr;
+    }
 
     const cardList = cardNames.map(function (name) {
       return "- " + name;
