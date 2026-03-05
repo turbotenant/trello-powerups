@@ -1,4 +1,4 @@
-/* global TrelloPowerUp, APP_KEY, APP_NAME, ICON_URL, VERSION, getAuthToken, handleAuthorization, ListReport */
+/* global TrelloPowerUp, APP_KEY, APP_NAME, ICON_URL, VERSION, getAuthToken, handleAuthorization, showAuthorizePopup, ListReport */
 
 /**
  * List Report Power-Up entry and settings.
@@ -8,7 +8,8 @@
 const currentPath = window.location.pathname || window.location.href;
 const isPopupContext =
   currentPath.includes("list-selection.html") ||
-  currentPath.includes("authorize.html");
+  currentPath.includes("authorize.html") ||
+  currentPath.includes("release-filter.html");
 
 if (currentPath.includes("settings.html")) {
   window.addEventListener("load", async () => {
@@ -153,6 +154,21 @@ if (currentPath.includes("settings.html")) {
             icon: { dark: ICON_URL, light: ICON_URL },
             text: "Generate Board Report",
             callback: ListReport.report.generateReportCallback,
+          },
+          {
+            icon: { dark: ICON_URL, light: ICON_URL },
+            text: "Generate Release Notes",
+            callback: async function (t) {
+              const token = await getAuthToken(t);
+              if (!token) {
+                return showAuthorizePopup(t);
+              }
+              return t.boardBar({
+                title: "Generate Release Notes",
+                url: "./release-filter.html",
+                height: 500,
+              });
+            },
           },
         ];
       },

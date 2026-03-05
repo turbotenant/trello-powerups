@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Generate Release Notes</title>
+  <script src="https://p.trellocdn.com/power-up.min.js"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      padding: 20px;
+      margin: 0 auto;
+      max-width: 440px;
+      box-sizing: border-box;
+    }
+    h3 {
+      margin-top: 0;
+    }
+    .form-group {
+      margin-bottom: 14px;
+    }
+    .form-group label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 4px;
+      color: #5e6c84;
+    }
+    .form-group select,
+    .form-group input[type="date"] {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 3px;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+    .date-row {
+      display: flex;
+      gap: 12px;
+    }
+    .date-row .form-group {
+      flex: 1;
+    }
+    button.primary-btn {
+      background-color: #0079bf;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 3px;
+      font-size: 14px;
+      cursor: pointer;
+      width: 100%;
+      margin-top: 10px;
+    }
+    button.primary-btn:hover {
+      background-color: #026aa7;
+    }
+    button:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+    }
+    button.secondary-btn {
+      background: none;
+      border: 1px solid #0079bf;
+      color: #0079bf;
+      padding: 8px 16px;
+      border-radius: 3px;
+      font-size: 14px;
+      cursor: pointer;
+      width: 100%;
+      margin-top: 8px;
+    }
+    button.secondary-btn:hover {
+      background-color: #e4f0f6;
+    }
+    #loading {
+      display: none;
+      text-align: center;
+      margin-top: 10px;
+      color: #5e6c84;
+    }
+    #error {
+      display: none;
+      color: #d32f2f;
+      margin-top: 10px;
+      padding: 10px;
+      background-color: #ffebee;
+      border-radius: 3px;
+    }
+    #output-section {
+      display: none;
+    }
+    #output-section textarea {
+      width: 100%;
+      min-height: 200px;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 3px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      resize: vertical;
+      box-sizing: border-box;
+    }
+    .output-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .output-header p {
+      margin: 0;
+      font-size: 13px;
+      color: #5e6c84;
+    }
+    .copy-btn {
+      background: none;
+      border: none;
+      color: #0079bf;
+      cursor: pointer;
+      font-size: 13px;
+      padding: 4px 0;
+    }
+    .copy-btn:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <h3>Generate Release Notes v<span id="version"></span></h3>
+
+  <div id="form-section">
+    <div class="date-row">
+      <div class="form-group">
+        <label for="start-date">Start date</label>
+        <input type="date" id="start-date">
+      </div>
+      <div class="form-group">
+        <label for="end-date">End date</label>
+        <input type="date" id="end-date">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="custom-field-select">Custom field (date)</label>
+      <select id="custom-field-select" disabled>
+        <option value="">Loading custom fields...</option>
+      </select>
+    </div>
+
+    <button type="button" id="generate-btn" class="primary-btn" disabled>Generate</button>
+  </div>
+
+  <div id="output-section">
+    <div class="output-header">
+      <p id="match-count"></p>
+      <button type="button" class="copy-btn" id="copy-btn">Copy to clipboard</button>
+    </div>
+    <textarea id="output-text"></textarea>
+    <button type="button" id="back-btn" class="secondary-btn">New search</button>
+  </div>
+
+  <div id="loading">Fetching cards, please wait...</div>
+  <div id="error"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
+  <script src="./constants.js"></script>
+  <script src="../shared/auth-helpers.js"></script>
+  <script src="../shared/trello-api.js"></script>
+  <script src="./list-report-helpers.js"></script>
+  <script src="./list-report-api.js"></script>
+  <script src="./release-filter-helpers.js"></script>
+  <script src="./power-up.js"></script>
+  <script>
+    var t = TrelloPowerUp.iframe({
+      appKey: APP_KEY,
+      appName: APP_NAME,
+    });
+
+    var formSection = document.getElementById('form-section');
+    var outputSection = document.getElementById('output-section');
+    var startDateInput = document.getElementById('start-date');
+    var endDateInput = document.getElementById('end-date');
+    var customFieldSelect = document.getElementById('custom-field-select');
+    var generateBtn = document.getElementById('generate-btn');
+    var loadingDiv = document.getElementById('loading');
+    var errorDiv = document.getElementById('error');
+    var outputText = document.getElementById('output-text');
+    var copyBtn = document.getElementById('copy-btn');
+    var backBtn = document.getElementById('back-btn');
+    var matchCount = document.getElementById('match-count');
+    var versionSpan = document.getElementById('version');
+
+    versionSpan.textContent = VERSION;
+    endDateInput.value = dayjs().format('YYYY-MM-DD');
+
+    var releasedListId = null;
+
+    function showError(message) {
+      errorDiv.textContent = message;
+      errorDiv.style.display = 'block';
+    }
+
+    function clearError() {
+      errorDiv.style.display = 'none';
+    }
+
+    async function initialize() {
+      try {
+        var token = await getAuthToken(t);
+        if (!token) {
+          showError('Not authorized. Please authorize the Power-Up first.');
+          return;
+        }
+
+        releasedListId = await ListReport.api.getReleasedListId(t);
+        if (!releasedListId) {
+          showError('No released list configured. Please set one in Power-Up settings (board menu \u2192 Power-Ups \u2192 Settings).');
+          return;
+        }
+
+        var context = t.getContext();
+        var boardId = context && context.board;
+        if (!boardId) {
+          showError('Could not get board context.');
+          return;
+        }
+
+        var customFields = await ListReport.api.fetchBoardCustomFields(boardId, token);
+        var dateFields = customFields.filter(function (field) {
+          return field.type === 'date';
+        });
+
+        if (dateFields.length === 0) {
+          customFieldSelect.innerHTML = '<option value="">No date custom fields found</option>';
+          return;
+        }
+
+        customFieldSelect.innerHTML = dateFields
+          .map(function (field) {
+            return '<option value="' + field.id + '">' + escapeHtml(field.name) + '</option>';
+          })
+          .join('');
+
+        customFieldSelect.disabled = false;
+        generateBtn.disabled = false;
+      } catch (error) {
+        console.error('Error initializing release filter:', error);
+        showError('Error loading data: ' + error.message);
+      }
+    }
+
+    function escapeHtml(text) {
+      var div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    generateBtn.addEventListener('click', async function () {
+      var selectedFieldId = customFieldSelect.value;
+      if (!selectedFieldId) {
+        showError('Please select a custom field.');
+        return;
+      }
+
+      var endDate = endDateInput.value || dayjs().format('YYYY-MM-DD');
+      var startDate = startDateInput.value || null;
+
+      clearError();
+      generateBtn.disabled = true;
+      customFieldSelect.disabled = true;
+      startDateInput.disabled = true;
+      endDateInput.disabled = true;
+      loadingDiv.style.display = 'block';
+
+      try {
+        var token = await getAuthToken(t);
+        if (!token) {
+          showError('Not authorized.');
+          return;
+        }
+
+        var cards = await ListReport.api.fetchListCards(releasedListId, token);
+
+        if (cards.length === 0) {
+          showError('No cards found in the released list.');
+          resetForm();
+          return;
+        }
+
+        var matchingCards = await ReleaseFilter.helpers.filterCardsByCustomFieldDate(
+          cards,
+          selectedFieldId,
+          startDate,
+          endDate,
+          token
+        );
+
+        if (matchingCards.length === 0) {
+          showError('No cards matched the selected date range.');
+          resetForm();
+          return;
+        }
+
+        var cardNames = matchingCards.map(function (item) {
+          return item.card.name;
+        });
+
+        var text = ReleaseFilter.helpers.formatReleaseNotes(cardNames, startDate, endDate);
+
+        outputText.value = text;
+        matchCount.textContent = matchingCards.length + ' card' + (matchingCards.length !== 1 ? 's' : '') + ' found';
+
+        formSection.style.display = 'none';
+        loadingDiv.style.display = 'none';
+        outputSection.style.display = 'block';
+      } catch (error) {
+        console.error('Error generating release notes:', error);
+        showError('Error generating release notes: ' + error.message);
+        resetForm();
+      }
+    });
+
+    function resetForm() {
+      generateBtn.disabled = false;
+      customFieldSelect.disabled = false;
+      startDateInput.disabled = false;
+      endDateInput.disabled = false;
+      loadingDiv.style.display = 'none';
+    }
+
+    copyBtn.addEventListener('click', function () {
+      outputText.select();
+      document.execCommand('copy');
+      copyBtn.textContent = 'Copied!';
+      setTimeout(function () {
+        copyBtn.textContent = 'Copy to clipboard';
+      }, 2000);
+    });
+
+    backBtn.addEventListener('click', function () {
+      outputSection.style.display = 'none';
+      formSection.style.display = 'block';
+      clearError();
+      resetForm();
+    });
+
+    initialize();
+  </script>
+</body>
+</html>
