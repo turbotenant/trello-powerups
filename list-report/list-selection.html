@@ -165,6 +165,24 @@
       </li>
     </ul>
 
+    <div id="card-scan-scope-panel" class="card-journey-panel">
+      <p style="margin-bottom: 8px;">Cards to scan</p>
+      <ul class="report-type-radio">
+        <li>
+          <label>
+            <input type="radio" name="card-scan-scope" value="destination-list" id="scan-scope-destination" checked>
+            <span>Only cards in the destination (To) list</span>
+          </label>
+        </li>
+        <li>
+          <label>
+            <input type="radio" name="card-scan-scope" value="all-board" id="scan-scope-all">
+            <span>All Active cards on the board</span>
+          </label>
+        </li>
+      </ul>
+    </div>
+
     <div id="list-selection-panel" class="list-selection-panel visible">
       <p>Select lists to generate a report for:</p>
       <button type="button" class="toggle-all-btn" id="toggle-all-btn" style="display: none;">Select All</button>

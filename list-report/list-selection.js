@@ -167,13 +167,17 @@
         return l.id === toId;
       });
 
+      var scanScope = document.querySelector('input[name="card-scan-scope"]:checked').value;
+      var scanScopeRadios = document.querySelectorAll('input[name="card-scan-scope"]');
+
       generateBtn.disabled = true;
       fromListSelect.disabled = true;
       toListSelect.disabled = true;
+      scanScopeRadios.forEach(function (r) { r.disabled = true; });
       loadingDiv.style.display = "block";
 
       try {
-        await ListReport.cardJourney.generateCardJourneyReport(t, fromList, toList);
+        await ListReport.cardJourney.generateCardJourneyReport(t, fromList, toList, scanScope);
         setTimeout(function () {
           t.closeBoardBar();
         }, 500);
@@ -185,6 +189,7 @@
         generateBtn.disabled = false;
         fromListSelect.disabled = false;
         toListSelect.disabled = false;
+        scanScopeRadios.forEach(function (r) { r.disabled = false; });
         loadingDiv.style.display = "none";
       }
       return;

@@ -20,10 +20,13 @@
    * @param {string} toListId - Destination list ID.
    * @param {string} boardId - Board ID.
    * @param {string} token - API token.
+   * @param {string} [scanScope='destination-list'] - 'destination-list' to fetch only To-list cards; 'all-board' to fetch every card on the board.
    * @returns {Promise<{memberData: Object, memberNames: Object}>}
    */
-  async function aggregateCardJourneyData(fromListId, toListId, boardId, token) {
-    const cards = await api.fetchBoardCards(boardId, token);
+  async function aggregateCardJourneyData(fromListId, toListId, boardId, token, scanScope) {
+    const cards = scanScope === 'all-board'
+      ? await api.fetchBoardCards(boardId, token)
+      : await api.fetchListCards(toListId, token);
 
     if (cards.length === 0) {
       return { memberData: {}, memberNames: {} };
@@ -109,8 +112,9 @@
    * @param {Object} t - Trello Power-Up interface.
    * @param {{id: string, name: string}} fromList - From list.
    * @param {{id: string, name: string}} toList - To list.
+   * @param {string} [scanScope='destination-list'] - 'destination-list' | 'all-board'.
    */
-  async function generateCardJourneyReport(t, fromList, toList) {
+  async function generateCardJourneyReport(t, fromList, toList, scanScope) {
     try {
       const token = await getAuthToken(t);
       if (!token) {
@@ -134,6 +138,7 @@
         toList.id,
         boardId,
         token,
+        scanScope || 'destination-list',
       );
 
       const csvContent = generateCardJourneyCSV(aggregatedData);
