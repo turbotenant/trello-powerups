@@ -16,6 +16,7 @@
   var versionSpan = document.getElementById("version");
   var listSelectionPanel = document.getElementById("list-selection-panel");
   var cardJourneyPanel = document.getElementById("card-journey-panel");
+  var cardScanScopePanel = document.getElementById("card-scan-scope-panel");
   var fromListSelect = document.getElementById("from-list-select");
   var toListSelect = document.getElementById("to-list-select");
 
@@ -116,6 +117,7 @@
         var isCardJourney = radio.value === "card-journey";
         listSelectionPanel.classList.toggle("visible", !isCardJourney);
         cardJourneyPanel.classList.toggle("visible", isCardJourney);
+        cardScanScopePanel.classList.toggle("visible", isCardJourney);
         updateGenerateButtonState();
       });
     });
