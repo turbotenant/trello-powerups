@@ -10,7 +10,7 @@ This repository contains three Trello Power-Ups that integrate with your Trello 
 
 2. **Start Case** - Automates case initiation by moving cards, assigning members, and setting due dates
 
-3. **List Report** - Generates a CSV report for a selected list with member-level metrics and optional cycle time (current work → released)
+3. **List Report** - Generates CSV reports: a per-list member metrics report and a Card Journey report that counts card moves between two lists
 
 ## Power-Ups
 
@@ -100,6 +100,7 @@ Generates a CSV report for a selected list with one row per member (plus "Unassi
 - **Board-level report**: Select any list on the board and download a CSV.
 - **Per-member metrics**: Size and Days to Release breakdowns, on-time vs past-due counts, total cards.
 - **Avg days (current → released)**: When configured in settings, shows the average number of days (rounded to nearest integer) that cards took to move from the current work list to the released list.
+- **Card Journey report**: Select a From list and a To list to count how many times cards were moved directly between them, broken down by the member who performed each move.
 
 #### Configuring the report (Settings)
 
@@ -118,6 +119,23 @@ When both lists are configured in settings, the CSV includes an extra column wit
 #### Optional board custom fields
 
 The report can show breakdowns by **Size** and **Days to Release** if the board has custom fields with those names (case-insensitive).
+
+#### Card Journey report
+
+The Card Journey report counts how many times cards were moved directly from one list to another, grouped by the member who performed each move. To generate one:
+
+1. Select **Card Journey** as the report type.
+2. Choose a **From** list and a **To** list.
+3. Choose a **Cards to scan** scope:
+   - **Only cards in the destination (To) list** (default) — faster, only fetches cards currently in the To list. Cards that were moved From → To but later moved out of the To list will not be counted.
+   - **All cards on the board** — scans every card on the board. Catches moves even if the card has since been moved out of the To list.
+4. Click **Generate Report**.
+
+The CSV has two columns: **Member** and **Cards Moved**. Rows are sorted alphabetically by member name, with "Unassigned" last and a TOTALS row at the bottom.
+
+**Important nuances:**
+- The report counts **move events**, not unique cards. If a card was moved From → To 3 times, that counts as 3.
+- Only **direct** transitions are counted. A card moved From → X → To is not counted unless there is an explicit From → To action in its history.
 
 #### Usage
 
@@ -174,12 +192,14 @@ trello-powerups/
 │   └── power-up.js             # Power-Up logic
 └── list-report/                # List Report Power-Up
     ├── authorize.html          # Authorization page
+    ├── card-journey-report.js  # Card Journey aggregation and CSV generation
     ├── constants.js            # App configuration
     ├── index.html              # Connector entry
     ├── list-report-api.js      # Trello API and board storage
     ├── list-report-helpers.js  # Card/date and custom field helpers
-    ├── list-report-report.js   # Aggregation, CSV generation, report flow
-    ├── list-selection.html     # List picker popup
+    ├── list-report-report.js   # List Report aggregation, CSV generation, report flow
+    ├── list-selection.html     # Report type picker and list selection UI
+    ├── list-selection.js       # UI logic for report type, list selection, and generation
     ├── power-up.js             # Power-Up logic
     └── settings.html           # Board settings (current work / released list)
 ```
@@ -228,6 +248,12 @@ The List Report Power-Up is split into API, helpers, and report modules:
 - Member-level aggregation (sizes, days to release, on-time, past-due)
 - CSV generation and download
 - Report flow orchestration
+
+#### Card Journey Report (`list-report/card-journey-report.js`)
+
+- Aggregates From → To move counts by member
+- Supports two scan scopes: destination list only (faster) or all board cards (comprehensive)
+- CSV generation with member name resolution and totals row
 
 ### Dependencies
 
@@ -365,6 +391,10 @@ Internal use only - TurboTenant
 For issues or questions, contact the development team or create an issue in the repository.
 
 ## Changelog
+
+### Version 1.9.3
+
+- **Card Journey — "Cards to scan" scope option**: users can now choose between scanning only cards currently in the destination (To) list (default, much faster for large boards) or scanning all cards on the board (catches cards that were moved out of the destination list after the From → To move).
 
 ### Version 1.0.0
 

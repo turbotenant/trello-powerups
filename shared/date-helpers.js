@@ -5,12 +5,14 @@
 // Rules for calculating US federal holidays.
 // This approach ensures holidays are correctly calculated for any year.
 const HOLIDAY_RULES = {
-  // Fixed date holidays (Month is 0-indexed, Day is 1-indexed)
+  // Fixed date holidays (Month is 0-indexed, Day is 1-indexed).
+  // When one of these falls on a weekend, it's observed on the nearest
+  // weekday (Saturday -> preceding Friday, Sunday -> following Monday),
+  // per HR's official holiday calendar.
   fixed: [
     { month: 0, day: 1, name: "New Year's Day" },
     { month: 6, day: 4, name: "Independence Day" },
     { month: 11, day: 25, name: "Christmas Day" },
-    { month: 12, day: 31, name: "New Year's Eve" },
     { month: 7, day: 14, name: "TurboTenant Day" },
     // NOTE: Add any other fixed-date holidays your company observes here.
   ],
@@ -31,12 +33,17 @@ const HOLIDAY_RULES = {
 const getHolidaysForYear = (year) => {
   const holidays = [];
 
-  // Calculate fixed holidays
+  // Calculate fixed holidays, shifting weekend dates to the observed weekday
   HOLIDAY_RULES.fixed.forEach((rule) => {
-    const holiday = dayjs(new Date(year, rule.month, rule.day)).format(
-      "YYYY-MM-DD"
-    );
-    holidays.push(holiday);
+    let holiday = dayjs(new Date(year, rule.month, rule.day));
+    if (holiday.day() === 6) {
+      // Saturday -> observed the preceding Friday
+      holiday = holiday.subtract(1, "day");
+    } else if (holiday.day() === 0) {
+      // Sunday -> observed the following Monday
+      holiday = holiday.add(1, "day");
+    }
+    holidays.push(holiday.format("YYYY-MM-DD"));
   });
 
   // Calculate floating holidays
